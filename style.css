@@ -1,0 +1,1055 @@
+/* =====================================================================
+   QUIZ BUILDER — STYLESHEET
+   ---------------------------------------------------------------------
+   Design concept: "Marked Up" — the app looks like a ruled worksheet /
+   graded exam slip. Blue "ink" marks the writing/playing phases, red
+   "pen" marks the graded result. Monospace type is used for UI chrome
+   (headings, badges, counters) while a plain sans face is reserved for
+   actual sentences and typed content, so long text stays easy to read.
+
+   Table of contents:
+     1. Reset & base styles
+     2. Design tokens (CSS custom properties)
+     3. Layout shell (app container, header, step indicator)
+     4. Card component
+     5. Buttons & form fields
+     6. Creator screen (form pane + question list pane)
+     7. Player screen (progress bar, timer ring, question, answers)
+     8. End screen ("result slip")
+     9. Confetti
+     10. Screen-switch transition + shared keyframes
+     11. Responsive breakpoints
+     12. Accessibility (focus states, reduced motion)
+   ===================================================================== */
+
+/* ---------------------------------------------------------------------
+   1. Reset & base styles
+--------------------------------------------------------------------- */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  min-height: 100vh;
+  font-family: var(--font-sans);
+  color: var(--clr-ink);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+
+  /* Faint ruled-paper lines behind the whole app — a nod to notebook
+     paper rather than a generic blurred gradient background. */
+  background-color: var(--clr-paper);
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent 27px,
+    var(--clr-rule) 27px,
+    var(--clr-rule) 28px
+  );
+}
+
+h1, h2, h3, p, ul, fieldset, figure {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+h1, h2 {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--clr-ink);
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  background: none;
+  color: inherit;
+}
+
+input {
+  font-family: inherit;
+}
+
+ul {
+  list-style: none;
+}
+
+/* ---------------------------------------------------------------------
+   2. Design tokens
+--------------------------------------------------------------------- */
+:root {
+  /* Color — an ink / ballpoint-blue / red-pen trio grounded in the
+     "graded worksheet" concept, instead of a generic purple gradient. */
+  --clr-paper: #fcfcfa;
+  --clr-rule: #e1e6ec;
+  --clr-border: #dde2e8;
+
+  --clr-ink: #1e2a38;
+  --clr-ink-soft: #5b6472;
+
+  --clr-blue: #2f5fa8;
+  --clr-blue-dark: #24487f;
+  --clr-blue-soft: #e7edf6;
+
+  --clr-green: #2f8f5b;
+  --clr-green-soft: #e1f3e8;
+
+  --clr-red: #c1332e;
+  --clr-red-soft: #fbe6e5;
+
+  /* Typography */
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+  /* Spacing scale */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+
+  /* Radius & shadow */
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --shadow-card: 0 1px 2px rgba(30, 42, 56, 0.06), 0 10px 24px -14px rgba(30, 42, 56, 0.28);
+}
+
+/* ---------------------------------------------------------------------
+   3. Layout shell
+--------------------------------------------------------------------- */
+.app-container {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-5) var(--space-7);
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  padding-bottom: var(--space-4);
+  margin-bottom: var(--space-6);
+  position: relative;
+  border-bottom: 2px solid var(--clr-ink);
+}
+
+/* A second, fainter rule just below the header — like the double
+   underline on a worksheet title block. */
+.app-header::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -5px;
+  height: 1px;
+  background: var(--clr-ink);
+  opacity: 0.35;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 2px solid var(--clr-ink);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-weight: 800;
+  font-size: 1rem;
+  color: var(--clr-blue);
+}
+
+.brand h1 {
+  font-size: 1.3rem;
+  letter-spacing: -0.01em;
+}
+
+/* ---- Step indicator: [1] Write   [2] Play   [3] Grade ---- */
+.steps {
+  display: flex;
+  gap: var(--space-4);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.step {
+  color: var(--clr-ink-soft);
+  opacity: 0.5;
+  transition: opacity 0.25s ease, color 0.25s ease;
+}
+
+.step.active {
+  opacity: 1;
+  color: var(--clr-blue);
+}
+
+/* The "Grade" step turns red when active, matching the red-pen accent
+   used throughout the results screen. */
+.step[data-step="end"].active {
+  color: var(--clr-red);
+}
+
+.sound-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 38px;
+  padding: 0.45rem 0.75rem;
+  border: 2px solid var(--clr-ink);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--clr-ink);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  box-shadow: 3px 3px 0 var(--clr-blue-soft);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.sound-toggle:hover {
+  transform: translateY(-2px);
+  box-shadow: 4px 5px 0 var(--clr-blue-soft);
+}
+
+.sound-toggle[aria-pressed="false"] {
+  color: var(--clr-ink-soft);
+  background: var(--clr-red-soft);
+  box-shadow: 3px 3px 0 rgba(193, 51, 46, 0.18);
+}
+
+.sound-toggle-icon {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+/* ---------------------------------------------------------------------
+   4. Card component
+--------------------------------------------------------------------- */
+.card {
+  background: var(--clr-paper);
+  border: 1px solid var(--clr-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-6);
+}
+
+.card h2 {
+  font-size: 1.2rem;
+  margin-bottom: var(--space-5);
+}
+
+/* ---------------------------------------------------------------------
+   5. Buttons & form fields
+--------------------------------------------------------------------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  width: auto;
+  padding: 0.9rem 1.5rem;
+  border-radius: var(--radius-md);
+  border: none;
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #fff;
+  transition: transform 0.15s ease, background-color 0.15s ease, opacity 0.15s ease;
+}
+
+.btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+
+.btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-block {
+  width: 100%;
+}
+
+.btn-primary {
+  background: var(--clr-blue);
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--clr-blue-dark);
+}
+
+.field {
+  margin-bottom: var(--space-5);
+}
+
+.field label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 700;
+  margin-bottom: var(--space-2);
+  color: var(--clr-ink-soft);
+}
+
+input[type="text"] {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1.5px solid var(--clr-border);
+  border-radius: var(--radius-sm);
+  font-size: 1rem;
+  color: var(--clr-ink);
+  background: #fff;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+input[type="text"]:focus {
+  outline: none;
+  border-color: var(--clr-blue);
+  box-shadow: 0 0 0 3px var(--clr-blue-soft);
+}
+
+input[type="radio"] {
+  width: 19px;
+  height: 19px;
+  accent-color: var(--clr-blue);
+  flex-shrink: 0;
+}
+
+.choices-fieldset {
+  margin-bottom: var(--space-3);
+}
+
+.choices-fieldset legend {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--clr-ink-soft);
+  margin-bottom: var(--space-3);
+}
+
+.choice-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.choice-letter {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--clr-ink-soft);
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.choice-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.form-error {
+  min-height: 1.2em;
+  color: var(--clr-red);
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: var(--space-3);
+}
+
+.hint {
+  text-align: center;
+  font-size: 0.8rem;
+  color: var(--clr-ink-soft);
+  margin-top: var(--space-2);
+}
+
+/* ---------------------------------------------------------------------
+   6. Creator screen
+--------------------------------------------------------------------- */
+
+/* The whole creator screen is ONE ruled sheet split into two panes,
+   rather than two separate floating cards — like a two-column ledger. */
+.creator-sheet,
+.question-card {
+  position: relative;
+  padding-left: 48px;
+}
+
+/* The blue "margin rule" signature — echoes the vertical red margin
+   line on ruled school paper (here in ink-blue for the "in progress"
+   screens; the end screen uses a different signature, see section 8). */
+.creator-sheet::before,
+.question-card::before {
+  content: "";
+  position: absolute;
+  left: 16px;
+  top: 18px;
+  bottom: 18px;
+  width: 4px;
+  border-radius: 4px;
+  background: var(--clr-blue);
+}
+
+.creator-grid {
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  /* No grid gap here on purpose -- spacing comes from the panes' own
+     padding below, so the divider rule sits centered in the gap rather
+     than offset to one side. */
+}
+
+.form-pane {
+  padding-right: var(--space-6);
+  border-right: 1px solid var(--clr-border);
+}
+
+.list-pane {
+  padding-left: var(--space-6);
+}
+
+.list-pane-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: var(--space-4);
+}
+
+.list-pane-header h2 {
+  margin-bottom: 0;
+}
+
+.question-count {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--clr-blue);
+  background: var(--clr-blue-soft);
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+}
+
+.question-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-height: 320px;
+  overflow-y: auto;
+  margin-bottom: var(--space-5);
+  min-height: 56px;
+}
+
+.question-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--clr-blue-soft);
+  border-radius: var(--radius-sm);
+}
+
+.question-item-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.question-item-text {
+  flex: 1;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.question-item-delete {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  font-size: 1rem;
+  line-height: 1;
+  color: var(--clr-ink-soft);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.question-item-delete:hover {
+  background: var(--clr-red-soft);
+  color: var(--clr-red);
+}
+
+.empty-state {
+  text-align: center;
+  color: var(--clr-ink-soft);
+  font-size: 0.9rem;
+  padding: var(--space-5) 0;
+}
+
+/* ---------------------------------------------------------------------
+   7. Player screen
+--------------------------------------------------------------------- */
+.quiz-meta {
+  margin-bottom: var(--space-5);
+}
+
+.quiz-meta.meta-pop {
+  animation: meta-pop 0.42s ease both;
+}
+
+.meme-overlay {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  z-index: 1000;
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  width: min(280px, calc(100vw - 48px));
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.6) rotate(-3deg);
+  --meme-duration: 3000ms;
+}
+
+.meme-overlay.show {
+  animation: meme-pop var(--meme-duration) cubic-bezier(0.2, 1.25, 0.45, 1) both;
+}
+
+.meme-overlay::before {
+  content: "";
+  position: fixed;
+  inset: -40vh -40vw;
+  z-index: -1;
+  background:
+    radial-gradient(circle at 50% 45%, rgba(252, 252, 250, 0.86) 0 22%, rgba(252, 252, 250, 0) 46%),
+    radial-gradient(circle at 50% 50%, rgba(47, 95, 168, 0.18), rgba(47, 95, 168, 0) 58%);
+  opacity: 0;
+  transform: scale(0.82);
+}
+
+.meme-overlay.show::before {
+  animation: meme-backdrop var(--meme-duration) ease both;
+}
+
+.meme-overlay img {
+  display: block;
+  width: 100%;
+  max-height: 230px;
+  object-fit: cover;
+  border: 3px solid var(--clr-ink);
+  border-radius: var(--radius-md);
+  background: #fff;
+  box-shadow: 8px 8px 0 rgba(30, 42, 56, 0.16);
+  transform-origin: center;
+}
+
+.meme-overlay-caption {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0.4rem 0.75rem;
+  border: 2px solid var(--clr-ink);
+  border-radius: 999px;
+  background: var(--clr-paper);
+  color: var(--clr-ink);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  text-align: center;
+  box-shadow: 4px 4px 0 var(--clr-blue-soft);
+}
+
+.progress-track {
+  width: 100%;
+  height: 8px;
+  background: var(--clr-blue-soft);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: var(--space-3);
+}
+
+.progress-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--clr-blue);
+  border-radius: 3px;
+  transition: width 0.4s ease;
+}
+
+.quiz-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+#question-counter {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--clr-ink-soft);
+}
+
+/* ---- Countdown timer ring ---- */
+.timer {
+  position: relative;
+  width: 50px;
+  height: 50px;
+}
+
+.timer-ring {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg); /* stroke starts at 12 o'clock and drains clockwise */
+}
+
+.timer-ring-bg,
+.timer-ring-progress {
+  fill: none;
+  stroke-width: 8;
+}
+
+.timer-ring-bg {
+  stroke: var(--clr-blue-soft);
+}
+
+.timer-ring-progress {
+  stroke: var(--clr-blue);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 1s linear, stroke 0.3s ease;
+}
+
+.timer-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.timer.timer-low .timer-ring-progress {
+  stroke: var(--clr-red);
+}
+
+.timer.timer-low .timer-text {
+  color: var(--clr-red);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.question-card h2 {
+  font-size: 1.35rem;
+  line-height: 1.5;
+  margin-bottom: var(--space-6);
+}
+
+.question-card.question-enter {
+  animation: question-slam-in 0.56s cubic-bezier(0.18, 1.2, 0.32, 1) both;
+}
+
+.question-card.question-exit {
+  animation: question-swipe-out 0.38s ease both;
+}
+
+.answers-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+
+.answer-btn {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  text-align: left;
+  padding: 1rem 1.1rem;
+  border-radius: var(--radius-md);
+  border: 2px solid var(--clr-border);
+  background: #fff;
+  color: var(--clr-ink);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 600;
+  transition: transform 0.15s ease, border-color 0.15s ease,
+    background-color 0.15s ease, color 0.15s ease;
+}
+
+.question-card.question-enter .answer-btn {
+  animation: answer-drop-in 0.48s cubic-bezier(0.18, 1.2, 0.32, 1) both;
+  animation-delay: calc(var(--answer-order) * 70ms + 120ms);
+}
+
+.answer-btn:hover:not(:disabled) {
+  border-color: var(--clr-blue);
+  transform: translateY(-2px);
+}
+
+.answer-btn:disabled {
+  cursor: default;
+}
+
+.answer-text {
+  flex: 1;
+}
+
+.answer-letter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border: 2px solid currentColor;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: var(--clr-blue);
+}
+
+.answer-btn.correct {
+  background: var(--clr-green-soft);
+  border-color: var(--clr-green);
+  color: var(--clr-green);
+  animation: correct-pop 0.62s cubic-bezier(0.18, 1.35, 0.45, 1) both;
+}
+.answer-btn.correct .answer-letter {
+  color: var(--clr-green);
+}
+
+.answer-btn.incorrect {
+  background: var(--clr-red-soft);
+  border-color: var(--clr-red);
+  color: var(--clr-red);
+  animation: wrong-wobble 0.62s ease both;
+}
+.answer-btn.incorrect .answer-letter {
+  color: var(--clr-red);
+}
+
+.answer-btn.dimmed {
+  opacity: 0.35;
+  filter: grayscale(0.45);
+  transform: scale(0.98);
+}
+
+/* ---------------------------------------------------------------------
+   8. End screen — "result slip"
+--------------------------------------------------------------------- */
+.end-card {
+  max-width: 380px;
+  margin: var(--space-6) auto 0;
+  text-align: center;
+  padding-top: calc(var(--space-6) + 14px);
+}
+
+.end-card.is-revealing {
+  animation: result-stage 0.55s ease both;
+}
+
+.end-card.is-revealing .end-score,
+.end-card.is-revealing .end-percentage {
+  animation: score-scramble 0.16s steps(2, end) infinite;
+}
+
+.end-card.score-revealed .end-score {
+  animation: final-score-pop 0.82s cubic-bezier(0.18, 1.35, 0.45, 1) both;
+}
+
+.end-card.score-revealed .end-percentage,
+.end-card.score-revealed .end-remark,
+.end-card.score-revealed .btn {
+  animation: reveal-slide-up 0.42s ease both;
+}
+
+/* Signature element: a punched/perforated top edge, like a slip torn
+   from a pad. Small circles painted in the page's own paper color sit
+   on top of the card's edge, reading as cut-out holes. This is the
+   one deliberately bold flourish in the whole design — reserved for
+   the results screen only. */
+.punch-edge {
+  position: relative;
+  overflow: visible;
+}
+
+.punch-edge::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: 0;
+  right: 0;
+  height: 16px;
+  background-image: radial-gradient(circle 6px, var(--clr-paper) 6px, transparent 6.5px);
+  background-size: 28px 16px;
+  background-position: 14px top;
+  background-repeat: repeat-x;
+  border-top-left-radius: inherit;
+  border-top-right-radius: inherit;
+}
+
+.end-eyebrow {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--clr-red);
+  margin-bottom: var(--space-3);
+}
+
+.end-score {
+  font-size: 3rem;
+  letter-spacing: -0.02em;
+  margin-bottom: var(--space-2);
+}
+
+.end-percentage {
+  font-family: var(--font-mono);
+  font-size: 1.1rem;
+  color: var(--clr-ink-soft);
+  margin-bottom: var(--space-3);
+}
+
+.end-remark {
+  font-size: 0.95rem;
+  color: var(--clr-ink-soft);
+  margin-bottom: var(--space-6);
+}
+
+/* ---------------------------------------------------------------------
+   9. Confetti
+--------------------------------------------------------------------- */
+.confetti-container {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 999;
+}
+
+.confetti-piece {
+  position: absolute;
+  top: -20px;
+  width: 8px;
+  height: 14px;
+  opacity: 0.9;
+  animation-name: confetti-fall;
+  animation-timing-function: ease-in;
+  animation-fill-mode: forwards;
+}
+
+/* ---------------------------------------------------------------------
+   10. Screen transitions & shared keyframes
+--------------------------------------------------------------------- */
+.screen {
+  display: none;
+}
+
+.screen.active {
+  display: block;
+  animation: fadeSlideIn 0.45s ease both;
+}
+
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes meta-pop {
+  0% { opacity: 0.75; transform: translateY(-8px) scale(0.98); }
+  55% { opacity: 1; transform: translateY(2px) scale(1.01); }
+  100% { transform: translateY(0) scale(1); }
+}
+
+@keyframes question-slam-in {
+  0% { opacity: 0; transform: translateY(26px) scale(0.96); filter: blur(8px); }
+  58% { opacity: 1; transform: translateY(-5px) scale(1.012); filter: blur(0); }
+  100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+
+@keyframes question-swipe-out {
+  0% { opacity: 1; transform: translateX(0) scale(1); filter: blur(0); }
+  100% { opacity: 0; transform: translateX(-38px) scale(0.97); filter: blur(5px); }
+}
+
+@keyframes answer-drop-in {
+  0% { opacity: 0; transform: translateY(18px) scale(0.96); }
+  70% { opacity: 1; transform: translateY(-3px) scale(1.01); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes shake {
+  10%, 90% { transform: translateX(-2px); }
+  20%, 80% { transform: translateX(3px); }
+  30%, 50%, 70% { transform: translateX(-6px); }
+  40%, 60% { transform: translateX(6px); }
+}
+
+@keyframes correct-pop {
+  0% { transform: scale(1); box-shadow: none; }
+  35% { transform: scale(1.055); box-shadow: 0 0 0 6px rgba(47, 143, 91, 0.15); }
+  70% { transform: scale(0.985); }
+  100% { transform: scale(1); box-shadow: 0 0 0 3px rgba(47, 143, 91, 0.08); }
+}
+
+@keyframes wrong-wobble {
+  0%, 100% { transform: translateX(0) rotate(0deg); }
+  12% { transform: translateX(-8px) rotate(-1deg); }
+  24% { transform: translateX(8px) rotate(1deg); }
+  36% { transform: translateX(-10px) rotate(-1.4deg); }
+  48% { transform: translateX(10px) rotate(1.4deg); }
+  62% { transform: translateX(-6px) rotate(-0.8deg); }
+  78% { transform: translateX(4px) rotate(0.5deg); }
+}
+
+@keyframes meme-pop {
+  0% { opacity: 0; transform: translate(-50%, -42%) scale(0.44) rotate(-9deg); filter: blur(5px); }
+  8% { opacity: 1; transform: translate(-50%, -50%) scale(1.16) rotate(4deg); filter: blur(0); }
+  15% { transform: translate(-50%, -50%) scale(0.94) rotate(-2deg); }
+  22% { transform: translate(-50%, -50%) scale(1.02) rotate(1deg); }
+  30% { transform: translate(-50%, -50%) scale(1) rotate(0deg); }
+  78% { opacity: 1; transform: translate(-50%, -52%) scale(1) rotate(0deg); filter: blur(0); }
+  90% { opacity: 1; transform: translate(-50%, -54%) scale(0.98) rotate(1deg); }
+  100% { opacity: 0; transform: translate(-50%, -66%) scale(0.84) rotate(3deg); filter: blur(4px); }
+}
+
+@keyframes meme-backdrop {
+  0% { opacity: 0; transform: scale(0.75); }
+  10% { opacity: 1; transform: scale(1); }
+  78% { opacity: 1; transform: scale(1.02); }
+  100% { opacity: 0; transform: scale(1.18); }
+}
+
+@keyframes result-stage {
+  0% { transform: translateY(18px) scale(0.96); opacity: 0; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+@keyframes score-scramble {
+  0% { transform: translateX(-1px) rotate(-0.35deg); color: var(--clr-blue); }
+  50% { transform: translateX(1px) rotate(0.35deg); color: var(--clr-red); }
+  100% { transform: translateX(0) rotate(0deg); color: var(--clr-ink); }
+}
+
+@keyframes final-score-pop {
+  0% { transform: scale(0.72) rotate(-2deg); opacity: 0; color: var(--clr-red); }
+  55% { transform: scale(1.16) rotate(1deg); opacity: 1; color: var(--clr-blue); }
+  75% { transform: scale(0.96) rotate(0deg); }
+  100% { transform: scale(1); color: var(--clr-ink); }
+}
+
+@keyframes reveal-slide-up {
+  0% { opacity: 0; transform: translateY(12px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes confetti-fall {
+  0%   { transform: translateY(0) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(105vh) rotate(600deg); opacity: 0.6; }
+}
+
+/* ---------------------------------------------------------------------
+   11. Responsive
+--------------------------------------------------------------------- */
+@media (max-width: 800px) {
+  .creator-grid {
+    grid-template-columns: 1fr;
+  }
+  .form-pane {
+    border-right: none;
+    border-bottom: 1px solid var(--clr-border);
+    padding-right: 0;
+    padding-bottom: var(--space-6);
+    margin-bottom: var(--space-6);
+  }
+  .list-pane {
+    padding-left: 0;
+  }
+}
+
+@media (max-width: 560px) {
+  .answers-grid {
+    grid-template-columns: 1fr;
+  }
+  .app-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .creator-sheet,
+  .question-card {
+    padding-left: var(--space-5);
+  }
+  .creator-sheet::before,
+  .question-card::before {
+    display: none;
+  }
+}
+
+@media (max-width: 420px) {
+  .step-label,
+  .steps span {
+    letter-spacing: 0.01em;
+  }
+}
+
+/* ---------------------------------------------------------------------
+   12. Accessibility: focus states & reduced motion
+--------------------------------------------------------------------- */
+.btn:focus-visible,
+.answer-btn:focus-visible,
+.sound-toggle:focus-visible,
+.question-item-delete:focus-visible,
+input[type="radio"]:focus-visible {
+  outline: 2px solid var(--clr-blue);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

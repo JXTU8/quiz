@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Quiz Builder</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- Confetti pieces are injected here at runtime by script.js -->
+  <div class="confetti-container" id="confetti-container" aria-hidden="true"></div>
+
+  <div class="app-container">
+
+    <!-- ============ HEADER ============ -->
+    <header class="app-header">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">&check;</span>
+        <h1>Quiz Builder</h1>
+      </div>
+
+      <nav class="steps" aria-label="App progress">
+        <span class="step" data-step="creator">[1] Write</span>
+        <span class="step" data-step="player">[2] Play</span>
+        <span class="step" data-step="end">[3] Grade</span>
+      </nav>
+
+      <button type="button" class="sound-toggle" id="sound-toggle" aria-pressed="true">
+        <span class="sound-toggle-icon" aria-hidden="true">🔊</span>
+        <span class="sound-toggle-text">Sound: ON</span>
+      </button>
+    </header>
+
+    <main class="app-main">
+
+      <!-- ============ SCREEN 1 -- CREATOR MODE ============ -->
+      <section id="creator-screen" class="screen active">
+        <div class="card creator-sheet">
+          <div class="creator-grid">
+
+            <!-- ---- Left pane: new question form ---- -->
+            <div class="form-pane">
+              <h2>New Question</h2>
+
+              <form id="question-form" novalidate>
+                <div class="field">
+                  <label for="question-text">Question</label>
+                  <input
+                    type="text"
+                    id="question-text"
+                    placeholder="e.g. What is the capital of Malaysia?"
+                    maxlength="150"
+                    required
+                  />
+                </div>
+
+                <fieldset class="choices-fieldset">
+                  <legend>Answer choices — mark the correct one</legend>
+
+                  <div class="choice-row">
+                    <input type="radio" name="correct-answer" id="correct-0" value="0" />
+                    <label for="correct-0" class="choice-letter">A</label>
+                    <input type="text" class="choice-input" id="choice-0" placeholder="Answer A" maxlength="80" required />
+                  </div>
+                  <div class="choice-row">
+                    <input type="radio" name="correct-answer" id="correct-1" value="1" />
+                    <label for="correct-1" class="choice-letter">B</label>
+                    <input type="text" class="choice-input" id="choice-1" placeholder="Answer B" maxlength="80" required />
+                  </div>
+                  <div class="choice-row">
+                    <input type="radio" name="correct-answer" id="correct-2" value="2" />
+                    <label for="correct-2" class="choice-letter">C</label>
+                    <input type="text" class="choice-input" id="choice-2" placeholder="Answer C" maxlength="80" required />
+                  </div>
+                  <div class="choice-row">
+                    <input type="radio" name="correct-answer" id="correct-3" value="3" />
+                    <label for="correct-3" class="choice-letter">D</label>
+                    <input type="text" class="choice-input" id="choice-3" placeholder="Answer D" maxlength="80" required />
+                  </div>
+                </fieldset>
+
+                <p class="form-error" id="form-error" role="alert"></p>
+
+                <button type="submit" class="btn btn-primary btn-block">Add Question</button>
+              </form>
+            </div>
+
+            <!-- ---- Right pane: questions added so far ---- -->
+            <div class="list-pane">
+              <div class="list-pane-header">
+                <h2>Questions</h2>
+                <span class="question-count" id="question-count">0 added</span>
+              </div>
+
+              <ul class="question-list" id="question-list">
+                <!-- populated dynamically by renderQuestionList() in script.js -->
+              </ul>
+
+              <button type="button" class="btn btn-primary btn-block" id="start-quiz-btn" disabled>
+                Start Quiz
+              </button>
+              <p class="hint" id="start-hint">Add at least one question to start.</p>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ SCREEN 2 -- PLAYER MODE ============ -->
+      <section id="player-screen" class="screen">
+
+        <div class="quiz-meta">
+          <div class="progress-track" aria-hidden="true">
+            <div class="progress-fill" id="progress-fill"></div>
+          </div>
+
+          <div class="quiz-meta-row">
+            <span id="question-counter">Question 1 of 1</span>
+
+            <div class="timer" id="timer-wrapper">
+              <svg class="timer-ring" viewBox="0 0 100 100">
+                <circle class="timer-ring-bg" cx="50" cy="50" r="45"></circle>
+                <circle class="timer-ring-progress" id="timer-ring-progress" cx="50" cy="50" r="45"></circle>
+              </svg>
+              <span class="timer-text" id="timer-text">15</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="meme-overlay" id="meme-overlay" aria-live="polite" aria-hidden="true">
+          <img src="" alt="" id="meme-overlay-img" />
+          <span class="meme-overlay-caption" id="meme-overlay-caption"></span>
+        </div>
+
+        <div class="card question-card">
+          <h2 id="question-text-display">Question text appears here</h2>
+
+          <div class="answers-grid">
+            <button type="button" class="answer-btn" data-index="0">
+              <span class="answer-letter">A</span>
+              <span class="answer-text"></span>
+            </button>
+            <button type="button" class="answer-btn" data-index="1">
+              <span class="answer-letter">B</span>
+              <span class="answer-text"></span>
+            </button>
+            <button type="button" class="answer-btn" data-index="2">
+              <span class="answer-letter">C</span>
+              <span class="answer-text"></span>
+            </button>
+            <button type="button" class="answer-btn" data-index="3">
+              <span class="answer-letter">D</span>
+              <span class="answer-text"></span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ SCREEN 3 -- END SCREEN ============ -->
+      <section id="end-screen" class="screen">
+        <div class="card end-card punch-edge">
+          <p class="end-eyebrow">Result</p>
+          <h2 class="end-score" id="end-score">0 / 0</h2>
+          <p class="end-percentage" id="end-percentage">0%</p>
+          <p class="end-remark" id="end-message">—</p>
+          <button type="button" class="btn btn-primary btn-block" id="new-quiz-btn">Create New Quiz</button>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script src="script.js" defer></script>
+</body>
+</html>
