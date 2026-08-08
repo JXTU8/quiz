@@ -1,21 +1,31 @@
 /* =====================================================================
    QUIZ BUILDER — STYLESHEET
    ---------------------------------------------------------------------
-   Design concept: "Marked Up" — the app looks like a ruled worksheet /
-   graded exam slip. Blue "ink" marks the writing/playing phases, red
-   "pen" marks the graded result. Monospace type is used for UI chrome
-   (headings, badges, counters) while a plain sans face is reserved for
-   actual sentences and typed content, so long text stays easy to read.
+   Design concept: "ON AIR" — the app is restaged as a late-night game
+   show set. A deep violet stage backdrop holds bright cue-card panels
+   under hot stage light. A chasing marquee-bulb strip (gold/pink)
+   trims the header like a theater marquee; the same strip lights the
+   top edge of the question card while a round is live. Answer choices
+   are chunky 3-D buzzer pads, the countdown is a glowing stage clock,
+   and the score reveal — which the original build already scripted as
+   a cinematic "lights down, grade incoming" moment — finally gets a
+   set to match: spotlight beams, a scrambling scoreboard, and a proper
+   confetti drop in gold / hot pink / cyan / mint stage-light colors.
+
+   Type is a three-role system instead of one workhorse sans:
+     display  → Bungee        (marquee signage: brand, headings, buttons)
+     body     → Space Grotesk (anything the player actually reads/types)
+     mono     → Space Mono    (timers, counters, badges, labels)
 
    Table of contents:
      1. Reset & base styles
      2. Design tokens (CSS custom properties)
-     3. Layout shell (app container, header, step indicator)
+     3. Layout shell (app container, header/marquee, step indicator)
      4. Card component
      5. Buttons & form fields
      6. Creator screen (form pane + question list pane)
      7. Player screen (progress bar, timer ring, question, answers)
-     8. End screen ("result slip")
+     8. End screen ("the reveal")
      9. Confetti
      10. Screen-switch transition + shared keyframes
      11. Responsive breakpoints
@@ -36,33 +46,34 @@ html, body {
 
 body {
   min-height: 100vh;
-  font-family: var(--font-sans);
-  color: var(--clr-ink);
+  font-family: var(--font-body);
+  color: var(--on-stage);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 
-  /* Faint ruled-paper lines behind the whole app — a nod to notebook
-     paper rather than a generic blurred gradient background. */
-  background-color: var(--clr-paper);
-  background-image: repeating-linear-gradient(
-    to bottom,
-    transparent 0,
-    transparent 27px,
-    var(--clr-rule) 27px,
-    var(--clr-rule) 28px
-  );
+  /* The stage: a deep violet backdrop with warm spotlight glow pooled
+     near the top and faint colored wash at the corners, instead of a
+     flat dark panel. */
+  background-color: var(--stage);
+  background-image:
+    radial-gradient(1100px 620px at 50% -8%, rgba(255, 201, 74, 0.16), transparent 60%),
+    radial-gradient(900px 520px at 88% 16%, rgba(255, 77, 126, 0.11), transparent 62%),
+    radial-gradient(900px 620px at 6% 90%, rgba(72, 224, 255, 0.09), transparent 60%);
+  background-repeat: no-repeat;
 }
 
-h1, h2, h3, p, ul, fieldset, figure {
+h1, h2, p, ul, fieldset, figure {
   margin: 0;
   padding: 0;
   border: 0;
 }
 
 h1, h2 {
-  font-family: var(--font-mono);
-  font-weight: 700;
-  color: var(--clr-ink);
+  font-family: var(--font-display);
+  font-weight: 400;
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--ink);
 }
 
 button {
@@ -84,28 +95,39 @@ ul {
    2. Design tokens
 --------------------------------------------------------------------- */
 :root {
-  /* Color — an ink / ballpoint-blue / red-pen trio grounded in the
-     "graded worksheet" concept, instead of a generic purple gradient. */
-  --clr-paper: #fcfcfa;
-  --clr-rule: #e1e6ec;
-  --clr-border: #dde2e8;
+  /* Stage — the dark backdrop */
+  --stage: #150b2e;
+  --stage-2: #22134d;
 
-  --clr-ink: #1e2a38;
-  --clr-ink-soft: #5b6472;
+  /* Cue card — bright surfaces floating on the stage */
+  --cue: #fff6e6;
+  --cue-white: #fffdf8;
 
-  --clr-blue: #2f5fa8;
-  --clr-blue-dark: #24487f;
-  --clr-blue-soft: #e7edf6;
+  /* Text set on a cue card */
+  --ink: #1c1030;
+  --ink-soft: #5b4e78;
 
-  --clr-green: #2f8f5b;
-  --clr-green-soft: #e1f3e8;
+  /* Text set directly on the stage */
+  --on-stage: #f3ecff;
+  --on-stage-soft: #b6a8dd;
 
-  --clr-red: #c1332e;
-  --clr-red-soft: #fbe6e5;
+  /* Marquee bulbs — a lighting-gel palette, each with one job:
+     gold = brand/primary, pink = incorrect/hot, cyan = info/timer,
+     mint = correct. */
+  --gold: #ffc94a;
+  --gold-bright: #ffe08a;
+  --pink: #ff4d7e;
+  --pink-soft: #ffe3ea;
+  --pink-text: #b8215a;
+  --cyan: #48e0ff;
+  --mint: #33f0a0;
+  --mint-soft: #e0fff2;
+  --mint-text: #0e7a52;
 
   /* Typography */
-  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, monospace;
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-display: "Bungee", "Arial Narrow", Impact, sans-serif;
+  --font-body: "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: "Space Mono", ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, monospace;
 
   /* Spacing scale */
   --space-1: 0.25rem;
@@ -117,44 +139,56 @@ ul {
   --space-7: 3rem;
 
   /* Radius & shadow */
-  --radius-sm: 8px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --shadow-card: 0 1px 2px rgba(30, 42, 56, 0.06), 0 10px 24px -14px rgba(30, 42, 56, 0.28);
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 22px;
+  --radius-pill: 999px;
+  --shadow-float: 0 30px 70px -24px rgba(8, 4, 20, 0.75), 0 0 0 1px rgba(255, 201, 74, 0.10);
 }
 
 /* ---------------------------------------------------------------------
    3. Layout shell
 --------------------------------------------------------------------- */
 .app-container {
-  max-width: 960px;
+  max-width: 1000px;
   margin: 0 auto;
   padding: var(--space-6) var(--space-5) var(--space-7);
 }
 
 .app-header {
+  position: relative;
+  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-4);
   flex-wrap: wrap;
-  padding-bottom: var(--space-4);
+  padding: var(--space-5) var(--space-6);
+  padding-bottom: calc(var(--space-4) + 12px);
   margin-bottom: var(--space-6);
-  position: relative;
-  border-bottom: 2px solid var(--clr-ink);
+  background: linear-gradient(175deg, var(--stage-2), var(--stage) 75%);
+  border: 2px solid rgba(255, 201, 74, 0.22);
+  border-radius: var(--radius-lg);
 }
 
-/* A second, fainter rule just below the header — like the double
-   underline on a worksheet title block. */
+/* Signature element: a chasing marquee-bulb strip along the header's
+   bottom edge, like the light trim on a theater marquee. Two radial
+   dot layers, offset by half a cycle, animate in lockstep so the
+   gold/pink dots appear to travel. */
 .app-header::after {
   content: "";
   position: absolute;
   left: 0;
   right: 0;
-  bottom: -5px;
-  height: 1px;
-  background: var(--clr-ink);
-  opacity: 0.35;
+  bottom: 0;
+  height: 7px;
+  background-image:
+    radial-gradient(circle, var(--gold) 2.3px, transparent 2.5px),
+    radial-gradient(circle, var(--pink) 2.3px, transparent 2.5px);
+  background-size: 28px 100%, 28px 100%;
+  background-position: 0 50%, 14px 50%;
+  background-repeat: repeat-x;
+  animation: bulb-chase 1.1s linear infinite;
 }
 
 .brand {
@@ -167,76 +201,110 @@ ul {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
-  border: 2px solid var(--clr-ink);
-  border-radius: var(--radius-sm);
-  font-family: var(--font-mono);
-  font-weight: 800;
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--gold);
+  color: var(--ink);
   font-size: 1rem;
-  color: var(--clr-blue);
+  box-shadow: 0 0 0 3px var(--stage), 0 0 16px rgba(255, 201, 74, 0.55);
+  animation: twinkle 2.6s ease-in-out infinite;
 }
 
 .brand h1 {
-  font-size: 1.3rem;
-  letter-spacing: -0.01em;
+  font-size: clamp(1.15rem, 4vw, 1.5rem);
+  letter-spacing: 0.02em;
+  /* Gradient marquee lettering, with a solid fallback color in case
+     background-clip: text isn't supported. */
+  color: var(--gold);
+  background: linear-gradient(90deg, var(--gold-bright), var(--pink));
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
-/* ---- Step indicator: [1] Write   [2] Play   [3] Grade ---- */
+/* ---- Step indicator: a lit marquee track, one bulb per step ---- */
 .steps {
   display: flex;
-  gap: var(--space-4);
+  gap: var(--space-5);
   font-family: var(--font-mono);
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-weight: 700;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
 .step {
-  color: var(--clr-ink-soft);
-  opacity: 0.5;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: var(--on-stage-soft);
+  opacity: 0.55;
   transition: opacity 0.25s ease, color 0.25s ease;
+}
+
+.step::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  transition: box-shadow 0.25s ease;
 }
 
 .step.active {
   opacity: 1;
-  color: var(--clr-blue);
+  color: var(--gold);
 }
 
-/* The "Grade" step turns red when active, matching the red-pen accent
-   used throughout the results screen. */
+.step.active::before {
+  box-shadow: 0 0 10px 2px rgba(255, 201, 74, 0.7);
+}
+
+/* The "Grade" step lights up pink when active, matching the hot
+   reveal-screen accent (same trick the original used with red). */
 .step[data-step="end"].active {
-  color: var(--clr-red);
+  color: var(--pink);
+}
+
+.step[data-step="end"].active::before {
+  box-shadow: 0 0 10px 2px rgba(255, 77, 126, 0.7);
 }
 
 .sound-toggle {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  min-height: 38px;
-  padding: 0.45rem 0.75rem;
-  border: 2px solid var(--clr-ink);
-  border-radius: 999px;
-  background: #fff;
-  color: var(--clr-ink);
+  min-height: 42px;
+  padding: 0.5rem 1rem;
+  border: 2.5px solid var(--ink);
+  border-radius: var(--radius-pill);
+  background: var(--cue-white);
+  color: var(--ink);
   font-family: var(--font-mono);
-  font-size: 0.78rem;
-  font-weight: 800;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
-  box-shadow: 3px 3px 0 var(--clr-blue-soft);
-  transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+  box-shadow: 0 4px 0 var(--ink);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease, color 0.15s ease;
 }
 
 .sound-toggle:hover {
   transform: translateY(-2px);
-  box-shadow: 4px 5px 0 var(--clr-blue-soft);
+  box-shadow: 0 6px 0 var(--ink);
+}
+
+.sound-toggle:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 var(--ink);
 }
 
 .sound-toggle[aria-pressed="false"] {
-  color: var(--clr-ink-soft);
-  background: var(--clr-red-soft);
-  box-shadow: 3px 3px 0 rgba(193, 51, 46, 0.18);
+  background: var(--pink-soft);
+  color: var(--pink-text);
+  box-shadow: 0 4px 0 rgba(184, 33, 90, 0.45);
 }
 
 .sound-toggle-icon {
@@ -248,15 +316,17 @@ ul {
    4. Card component
 --------------------------------------------------------------------- */
 .card {
-  background: var(--clr-paper);
-  border: 1px solid var(--clr-border);
+  background: var(--cue);
+  color: var(--ink);
+  border: 3px solid var(--gold);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-card);
+  box-shadow: var(--shadow-float);
   padding: var(--space-6);
 }
 
 .card h2 {
-  font-size: 1.2rem;
+  font-size: 1.1rem;
+  letter-spacing: 0.01em;
   margin-bottom: var(--space-5);
 }
 
@@ -269,16 +339,16 @@ ul {
   justify-content: center;
   gap: var(--space-2);
   width: auto;
-  padding: 0.9rem 1.5rem;
+  padding: 0.95rem 1.6rem;
   border-radius: var(--radius-md);
-  border: none;
-  font-family: var(--font-mono);
-  font-size: 0.9rem;
-  font-weight: 700;
+  border: 3px solid var(--ink);
+  font-family: var(--font-display);
+  font-size: 0.92rem;
+  line-height: 1;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #fff;
-  transition: transform 0.15s ease, background-color 0.15s ease, opacity 0.15s ease;
+  letter-spacing: 0.03em;
+  color: var(--ink);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
 }
 
 .btn:hover:not(:disabled) {
@@ -286,7 +356,7 @@ ul {
 }
 
 .btn:active:not(:disabled) {
-  transform: translateY(0);
+  transform: translateY(3px);
 }
 
 .btn:disabled {
@@ -300,10 +370,15 @@ ul {
 }
 
 .btn-primary {
-  background: var(--clr-blue);
+  background: var(--gold);
+  box-shadow: 0 6px 0 var(--ink);
 }
 .btn-primary:hover:not(:disabled) {
-  background: var(--clr-blue-dark);
+  background: var(--gold-bright);
+  box-shadow: 0 8px 0 var(--ink);
+}
+.btn-primary:active:not(:disabled) {
+  box-shadow: 0 2px 0 var(--ink);
 }
 
 .field {
@@ -312,33 +387,37 @@ ul {
 
 .field label {
   display: block;
-  font-size: 0.85rem;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
   font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   margin-bottom: var(--space-2);
-  color: var(--clr-ink-soft);
+  color: var(--ink-soft);
 }
 
 input[type="text"] {
   width: 100%;
-  padding: 0.75rem 1rem;
-  border: 1.5px solid var(--clr-border);
+  padding: 0.8rem 1rem;
+  border: 2.5px solid rgba(28, 16, 48, 0.18);
   border-radius: var(--radius-sm);
+  font-family: var(--font-body);
   font-size: 1rem;
-  color: var(--clr-ink);
-  background: #fff;
+  color: var(--ink);
+  background: var(--cue-white);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 input[type="text"]:focus {
   outline: none;
-  border-color: var(--clr-blue);
-  box-shadow: 0 0 0 3px var(--clr-blue-soft);
+  border-color: var(--ink);
+  box-shadow: 0 0 0 4px rgba(255, 201, 74, 0.3);
 }
 
 input[type="radio"] {
-  width: 19px;
-  height: 19px;
-  accent-color: var(--clr-blue);
+  width: 20px;
+  height: 20px;
+  accent-color: var(--gold);
   flex-shrink: 0;
 }
 
@@ -347,9 +426,12 @@ input[type="radio"] {
 }
 
 .choices-fieldset legend {
-  font-size: 0.85rem;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
   font-weight: 700;
-  color: var(--clr-ink-soft);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
   margin-bottom: var(--space-3);
 }
 
@@ -360,15 +442,30 @@ input[type="radio"] {
   margin-bottom: var(--space-3);
 }
 
+/* Chip badges instead of plain letters — filled with a lighting-gel
+   accent per choice (A/B/C/D -> gold/cyan/pink/mint) so the same
+   four colors reappear once play starts. Text stays ink-on-bright so
+   contrast holds regardless of which accent lands on a given chip. */
 .choice-letter {
-  font-family: var(--font-mono);
-  font-weight: 700;
-  font-size: 0.85rem;
-  color: var(--clr-ink-soft);
-  width: 16px;
-  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
   flex-shrink: 0;
+  border: 2px solid var(--ink);
+  border-radius: var(--radius-sm);
+  background: rgba(28, 16, 48, 0.06);
+  font-family: var(--font-display);
+  font-size: 0.76rem;
+  line-height: 1;
+  color: var(--ink);
 }
+
+.choice-row:nth-of-type(1) .choice-letter { background: var(--gold); }
+.choice-row:nth-of-type(2) .choice-letter { background: var(--cyan); }
+.choice-row:nth-of-type(3) .choice-letter { background: var(--pink); }
+.choice-row:nth-of-type(4) .choice-letter { background: var(--mint); }
 
 .choice-input {
   flex: 1;
@@ -377,7 +474,7 @@ input[type="radio"] {
 
 .form-error {
   min-height: 1.2em;
-  color: var(--clr-red);
+  color: var(--pink-text);
   font-size: 0.85rem;
   font-weight: 600;
   margin-bottom: var(--space-3);
@@ -386,48 +483,21 @@ input[type="radio"] {
 .hint {
   text-align: center;
   font-size: 0.8rem;
-  color: var(--clr-ink-soft);
+  color: var(--ink-soft);
   margin-top: var(--space-2);
 }
 
 /* ---------------------------------------------------------------------
    6. Creator screen
 --------------------------------------------------------------------- */
-
-/* The whole creator screen is ONE ruled sheet split into two panes,
-   rather than two separate floating cards — like a two-column ledger. */
-.creator-sheet,
-.question-card {
-  position: relative;
-  padding-left: 48px;
-}
-
-/* The blue "margin rule" signature — echoes the vertical red margin
-   line on ruled school paper (here in ink-blue for the "in progress"
-   screens; the end screen uses a different signature, see section 8). */
-.creator-sheet::before,
-.question-card::before {
-  content: "";
-  position: absolute;
-  left: 16px;
-  top: 18px;
-  bottom: 18px;
-  width: 4px;
-  border-radius: 4px;
-  background: var(--clr-blue);
-}
-
 .creator-grid {
   display: grid;
   grid-template-columns: 1.15fr 0.85fr;
-  /* No grid gap here on purpose -- spacing comes from the panes' own
-     padding below, so the divider rule sits centered in the gap rather
-     than offset to one side. */
 }
 
 .form-pane {
   padding-right: var(--space-6);
-  border-right: 1px solid var(--clr-border);
+  border-right: 2px dashed rgba(28, 16, 48, 0.16);
 }
 
 .list-pane {
@@ -447,12 +517,13 @@ input[type="radio"] {
 
 .question-count {
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   font-weight: 700;
-  color: var(--clr-blue);
-  background: var(--clr-blue-soft);
-  padding: 0.25rem 0.6rem;
-  border-radius: 999px;
+  color: var(--ink);
+  background: var(--gold);
+  padding: 0.28rem 0.65rem;
+  border: 2px solid var(--ink);
+  border-radius: var(--radius-pill);
 }
 
 .question-list {
@@ -470,7 +541,9 @@ input[type="radio"] {
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
-  background: var(--clr-blue-soft);
+  background: var(--cue-white);
+  border: 2px solid rgba(28, 16, 48, 0.1);
+  border-left: 4px solid var(--gold);
   border-radius: var(--radius-sm);
 }
 
@@ -481,7 +554,8 @@ input[type="radio"] {
   width: 22px;
   height: 22px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--ink);
+  color: var(--cue);
   font-family: var(--font-mono);
   font-size: 0.7rem;
   font-weight: 700;
@@ -503,18 +577,19 @@ input[type="radio"] {
   border-radius: 50%;
   font-size: 1rem;
   line-height: 1;
-  color: var(--clr-ink-soft);
-  transition: background-color 0.15s ease, color 0.15s ease;
+  color: var(--ink-soft);
+  transition: background-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
 }
 
 .question-item-delete:hover {
-  background: var(--clr-red-soft);
-  color: var(--clr-red);
+  background: var(--pink-soft);
+  color: var(--pink-text);
+  transform: rotate(90deg) scale(1.1);
 }
 
 .empty-state {
   text-align: center;
-  color: var(--clr-ink-soft);
+  color: var(--ink-soft);
   font-size: 0.9rem;
   padding: var(--space-5) 0;
 }
@@ -522,6 +597,9 @@ input[type="radio"] {
 /* ---------------------------------------------------------------------
    7. Player screen
 --------------------------------------------------------------------- */
+
+/* The meta bar (progress + timer) sits directly on the dark stage, not
+   on a cue card, so its text uses the on-stage color family. */
 .quiz-meta {
   margin-bottom: var(--space-5);
 }
@@ -555,8 +633,8 @@ input[type="radio"] {
   inset: -40vh -40vw;
   z-index: -1;
   background:
-    radial-gradient(circle at 50% 45%, rgba(252, 252, 250, 0.86) 0 22%, rgba(252, 252, 250, 0) 46%),
-    radial-gradient(circle at 50% 50%, rgba(47, 95, 168, 0.18), rgba(47, 95, 168, 0) 58%);
+    radial-gradient(circle at 50% 45%, rgba(21, 11, 46, 0.85) 0 22%, rgba(21, 11, 46, 0) 46%),
+    radial-gradient(circle at 50% 50%, rgba(255, 201, 74, 0.22), rgba(255, 201, 74, 0) 58%);
   opacity: 0;
   transform: scale(0.82);
 }
@@ -570,10 +648,10 @@ input[type="radio"] {
   width: 100%;
   max-height: 230px;
   object-fit: cover;
-  border: 3px solid var(--clr-ink);
+  border: 4px solid var(--gold);
   border-radius: var(--radius-md);
   background: #fff;
-  box-shadow: 8px 8px 0 rgba(30, 42, 56, 0.16);
+  box-shadow: 10px 10px 0 rgba(21, 11, 46, 0.4), 0 0 40px rgba(255, 201, 74, 0.25);
   transform-origin: center;
 }
 
@@ -582,24 +660,25 @@ input[type="radio"] {
   align-items: center;
   justify-content: center;
   min-height: 34px;
-  padding: 0.4rem 0.75rem;
-  border: 2px solid var(--clr-ink);
-  border-radius: 999px;
-  background: var(--clr-paper);
-  color: var(--clr-ink);
-  font-family: var(--font-mono);
-  font-size: 0.82rem;
-  font-weight: 900;
+  padding: 0.4rem 0.8rem;
+  border: 3px solid var(--ink);
+  border-radius: var(--radius-pill);
+  background: var(--gold);
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 0.8rem;
+  line-height: 1;
   text-transform: uppercase;
   text-align: center;
-  box-shadow: 4px 4px 0 var(--clr-blue-soft);
+  box-shadow: 4px 4px 0 rgba(21, 11, 46, 0.4);
 }
 
 .progress-track {
   width: 100%;
-  height: 8px;
-  background: var(--clr-blue-soft);
-  border-radius: 3px;
+  height: 10px;
+  background: rgba(243, 236, 255, 0.14);
+  border: 1.5px solid rgba(243, 236, 255, 0.18);
+  border-radius: var(--radius-pill);
   overflow: hidden;
   margin-bottom: var(--space-3);
 }
@@ -607,9 +686,10 @@ input[type="radio"] {
 .progress-fill {
   height: 100%;
   width: 0%;
-  background: var(--clr-blue);
-  border-radius: 3px;
+  background: linear-gradient(90deg, var(--gold), var(--pink));
+  border-radius: var(--radius-pill);
   transition: width 0.4s ease;
+  box-shadow: 0 0 12px rgba(255, 201, 74, 0.55);
 }
 
 .quiz-meta-row {
@@ -622,14 +702,16 @@ input[type="radio"] {
   font-family: var(--font-mono);
   font-weight: 700;
   font-size: 0.9rem;
-  color: var(--clr-ink-soft);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--on-stage-soft);
 }
 
-/* ---- Countdown timer ring ---- */
+/* ---- Countdown timer ring: a glowing stage clock ---- */
 .timer {
   position: relative;
-  width: 50px;
-  height: 50px;
+  width: 56px;
+  height: 56px;
 }
 
 .timer-ring {
@@ -645,13 +727,14 @@ input[type="radio"] {
 }
 
 .timer-ring-bg {
-  stroke: var(--clr-blue-soft);
+  stroke: rgba(243, 236, 255, 0.16);
 }
 
 .timer-ring-progress {
-  stroke: var(--clr-blue);
+  stroke: var(--cyan);
   stroke-linecap: round;
   transition: stroke-dashoffset 1s linear, stroke 0.3s ease;
+  filter: drop-shadow(0 0 6px rgba(72, 224, 255, 0.65));
 }
 
 .timer-text {
@@ -661,21 +744,52 @@ input[type="radio"] {
   align-items: center;
   justify-content: center;
   font-family: var(--font-mono);
-  font-size: 0.9rem;
-  font-weight: 800;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--on-stage);
 }
 
 .timer.timer-low .timer-ring-progress {
-  stroke: var(--clr-red);
+  stroke: var(--pink);
+  filter: drop-shadow(0 0 8px rgba(255, 77, 126, 0.75));
 }
 
 .timer.timer-low .timer-text {
-  color: var(--clr-red);
+  color: var(--pink);
   animation: pulse 1s ease-in-out infinite;
 }
 
+/* The question card gets the marquee-bulb strip along its top edge —
+   the same signature as the header, echoed here to mark "you're on
+   air" while a round is live. */
+.question-card {
+  position: relative;
+  overflow: hidden;
+  padding-top: calc(var(--space-6) + 11px);
+}
+
+.question-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 7px;
+  background-image:
+    radial-gradient(circle, var(--gold) 2.1px, transparent 2.3px),
+    radial-gradient(circle, var(--pink) 2.1px, transparent 2.3px);
+  background-size: 24px 100%, 24px 100%;
+  background-position: 0 50%, 12px 50%;
+  background-repeat: repeat-x;
+  animation: bulb-chase-tight 1s linear infinite;
+}
+
 .question-card h2 {
-  font-size: 1.35rem;
+  font-family: var(--font-body);
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 1.4rem;
   line-height: 1.5;
   margin-bottom: var(--space-6);
 }
@@ -694,21 +808,25 @@ input[type="radio"] {
   gap: var(--space-4);
 }
 
+/* Chunky "buzzer pad" buttons: a hard offset shadow instead of blur,
+   which compresses on press for a physical, game-show-buzzer feel. */
 .answer-btn {
   display: flex;
   align-items: center;
   gap: var(--space-3);
   text-align: left;
-  padding: 1rem 1.1rem;
+  min-height: 68px;
+  padding: 1.05rem 1.15rem;
   border-radius: var(--radius-md);
-  border: 2px solid var(--clr-border);
-  background: #fff;
-  color: var(--clr-ink);
-  font-family: var(--font-sans);
-  font-size: 1rem;
+  border: 3px solid var(--ink);
+  background: var(--cue-white);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 1.03rem;
   font-weight: 600;
-  transition: transform 0.15s ease, border-color 0.15s ease,
-    background-color 0.15s ease, color 0.15s ease;
+  box-shadow: 0 5px 0 var(--ink);
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.15s ease,
+    border-color 0.15s ease, color 0.15s ease;
 }
 
 .question-card.question-enter .answer-btn {
@@ -717,8 +835,13 @@ input[type="radio"] {
 }
 
 .answer-btn:hover:not(:disabled) {
-  border-color: var(--clr-blue);
   transform: translateY(-2px);
+  box-shadow: 0 7px 0 var(--ink);
+}
+
+.answer-btn:active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow: 0 2px 0 var(--ink);
 }
 
 .answer-btn:disabled {
@@ -733,77 +856,139 @@ input[type="radio"] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 30px;
+  height: 30px;
   flex-shrink: 0;
-  border: 2px solid currentColor;
+  border: 2.5px solid var(--ink);
   border-radius: var(--radius-sm);
-  font-family: var(--font-mono);
+  background: rgba(28, 16, 48, 0.06);
+  font-family: var(--font-display);
   font-size: 0.85rem;
-  font-weight: 800;
-  color: var(--clr-blue);
+  line-height: 1;
+  color: var(--ink);
 }
 
+.answer-btn[data-index="0"] .answer-letter { background: var(--gold); }
+.answer-btn[data-index="1"] .answer-letter { background: var(--cyan); }
+.answer-btn[data-index="2"] .answer-letter { background: var(--pink); }
+.answer-btn[data-index="3"] .answer-letter { background: var(--mint); }
+
 .answer-btn.correct {
-  background: var(--clr-green-soft);
-  border-color: var(--clr-green);
-  color: var(--clr-green);
+  background: var(--mint-soft);
+  border-color: var(--mint);
+  color: var(--mint-text);
+  box-shadow: 0 4px 0 var(--mint);
   animation: correct-pop 0.62s cubic-bezier(0.18, 1.35, 0.45, 1) both;
 }
 .answer-btn.correct .answer-letter {
-  color: var(--clr-green);
+  background: var(--mint);
+  border-color: var(--ink);
+  color: var(--ink);
 }
 
 .answer-btn.incorrect {
-  background: var(--clr-red-soft);
-  border-color: var(--clr-red);
-  color: var(--clr-red);
+  background: var(--pink-soft);
+  border-color: var(--pink);
+  color: var(--pink-text);
+  box-shadow: 0 4px 0 var(--pink);
   animation: wrong-wobble 0.62s ease both;
 }
 .answer-btn.incorrect .answer-letter {
-  color: var(--clr-red);
+  background: var(--pink);
+  border-color: var(--ink);
+  color: var(--ink);
 }
 
 .answer-btn.dimmed {
   opacity: 0.35;
   filter: grayscale(0.45);
   transform: scale(0.98);
+  box-shadow: 0 3px 0 var(--ink);
 }
 
 /* ---------------------------------------------------------------------
-   8. End screen — "result slip"
+   8. End screen — "the reveal"
 --------------------------------------------------------------------- */
 .end-card {
-  max-width: 380px;
+  max-width: 430px;
   margin: var(--space-6) auto 0;
   text-align: center;
   padding-top: calc(var(--space-6) + 14px);
+  isolation: isolate;
+  transform-origin: center;
+  box-shadow:
+    0 1px 2px rgba(8, 4, 20, 0.3),
+    0 22px 55px -28px rgba(8, 4, 20, 0.75);
 }
 
 .end-card.is-revealing {
-  animation: result-stage 0.55s ease both;
+  animation: result-stage 1.1s cubic-bezier(0.16, 1, 0.3, 1) both;
+  box-shadow:
+    0 0 0 2px rgba(255, 201, 74, 0.12),
+    0 24px 70px -24px rgba(255, 201, 74, 0.4),
+    0 0 70px rgba(255, 77, 126, 0.22);
+}
+
+.end-card::after {
+  content: "";
+  position: absolute;
+  inset: -18px;
+  z-index: -1;
+  border-radius: calc(var(--radius-lg) + 18px);
+  background:
+    conic-gradient(from 120deg, rgba(255, 201, 74, 0), rgba(255, 201, 74, 0.35), rgba(255, 77, 126, 0.32), rgba(72, 224, 255, 0.22), rgba(255, 201, 74, 0)),
+    radial-gradient(circle at 50% 35%, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0) 48%);
+  opacity: 0;
+  filter: blur(18px);
+}
+
+.end-card.is-revealing::after {
+  animation: reveal-spotlight 4.2s ease both;
+}
+
+.end-card.is-revealing .end-eyebrow {
+  animation: cinematic-eyebrow 0.9s ease both;
 }
 
 .end-card.is-revealing .end-score,
 .end-card.is-revealing .end-percentage {
-  animation: score-scramble 0.16s steps(2, end) infinite;
+  animation: score-scramble 0.12s steps(2, end) infinite, score-glow 1s ease-in-out infinite;
 }
 
 .end-card.score-revealed .end-score {
-  animation: final-score-pop 0.82s cubic-bezier(0.18, 1.35, 0.45, 1) both;
+  animation: final-score-pop 1.05s cubic-bezier(0.12, 1.45, 0.34, 1) both;
 }
 
 .end-card.score-revealed .end-percentage,
 .end-card.score-revealed .end-remark,
 .end-card.score-revealed .btn {
-  animation: reveal-slide-up 0.42s ease both;
+  animation: reveal-slide-up 0.62s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-/* Signature element: a punched/perforated top edge, like a slip torn
-   from a pad. Small circles painted in the page's own paper color sit
-   on top of the card's edge, reading as cut-out holes. This is the
-   one deliberately bold flourish in the whole design — reserved for
-   the results screen only. */
+#end-screen.active {
+  position: relative;
+  min-height: 520px;
+  isolation: isolate;
+}
+
+/* An extra, brighter gold/pink bloom that only appears once the end
+   screen is active — the lights coming up for the big moment, layered
+   on top of the constant ambient stage glow from the body background. */
+#end-screen.active::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(900px 520px at 50% 20%, rgba(255, 201, 74, 0.2), transparent 46%),
+    radial-gradient(700px 520px at 50% 62%, rgba(255, 77, 126, 0.12), transparent 55%);
+}
+
+/* Signature element (reprised): a punched/perforated top edge, like a
+   ticket stub torn from a redemption counter. The holes are painted
+   in the stage's own dark color so they read as cut through to the
+   backdrop behind the card. */
 .punch-edge {
   position: relative;
   overflow: visible;
@@ -816,7 +1001,7 @@ input[type="radio"] {
   left: 0;
   right: 0;
   height: 16px;
-  background-image: radial-gradient(circle 6px, var(--clr-paper) 6px, transparent 6.5px);
+  background-image: radial-gradient(circle 6px, var(--stage) 6px, transparent 6.5px);
   background-size: 28px 16px;
   background-position: 14px top;
   background-repeat: repeat-x;
@@ -827,29 +1012,36 @@ input[type="radio"] {
 .end-eyebrow {
   font-family: var(--font-mono);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   font-size: 0.75rem;
   font-weight: 700;
-  color: var(--clr-red);
+  color: var(--pink-text);
   margin-bottom: var(--space-3);
 }
 
 .end-score {
-  font-size: 3rem;
-  letter-spacing: -0.02em;
+  font-family: var(--font-display);
+  font-size: clamp(3.2rem, 11vw, 6rem);
+  letter-spacing: 0.01em;
   margin-bottom: var(--space-2);
+  line-height: 0.95;
+  color: var(--ink);
+  text-shadow: 0 10px 30px rgba(255, 201, 74, 0.35);
 }
 
 .end-percentage {
   font-family: var(--font-mono);
-  font-size: 1.1rem;
-  color: var(--clr-ink-soft);
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--ink-soft);
   margin-bottom: var(--space-3);
+  min-height: 1.9em;
 }
 
 .end-remark {
-  font-size: 0.95rem;
-  color: var(--clr-ink-soft);
+  font-family: var(--font-body);
+  font-size: 0.98rem;
+  color: var(--ink-soft);
   margin-bottom: var(--space-6);
 }
 
@@ -869,10 +1061,11 @@ input[type="radio"] {
   top: -20px;
   width: 8px;
   height: 14px;
-  opacity: 0.9;
+  opacity: 0.95;
   animation-name: confetti-fall;
   animation-timing-function: ease-in;
   animation-fill-mode: forwards;
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.18);
 }
 
 /* ---------------------------------------------------------------------
@@ -890,6 +1083,21 @@ input[type="radio"] {
 @keyframes fadeSlideIn {
   from { opacity: 0; transform: translateY(16px); }
   to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes bulb-chase {
+  from { background-position: 0 50%, 14px 50%; }
+  to   { background-position: 28px 50%, 42px 50%; }
+}
+
+@keyframes bulb-chase-tight {
+  from { background-position: 0 50%, 12px 50%; }
+  to   { background-position: 24px 50%, 36px 50%; }
+}
+
+@keyframes twinkle {
+  0%, 100% { transform: scale(1) rotate(0deg); box-shadow: 0 0 0 3px var(--stage), 0 0 12px rgba(255, 201, 74, 0.45); }
+  50% { transform: scale(1.08) rotate(8deg); box-shadow: 0 0 0 3px var(--stage), 0 0 22px rgba(255, 201, 74, 0.75); }
 }
 
 @keyframes meta-pop {
@@ -915,18 +1123,11 @@ input[type="radio"] {
   100% { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-@keyframes shake {
-  10%, 90% { transform: translateX(-2px); }
-  20%, 80% { transform: translateX(3px); }
-  30%, 50%, 70% { transform: translateX(-6px); }
-  40%, 60% { transform: translateX(6px); }
-}
-
 @keyframes correct-pop {
-  0% { transform: scale(1); box-shadow: none; }
-  35% { transform: scale(1.055); box-shadow: 0 0 0 6px rgba(47, 143, 91, 0.15); }
+  0% { transform: scale(1); box-shadow: 0 4px 0 var(--mint); }
+  35% { transform: scale(1.055); box-shadow: 0 4px 0 var(--mint), 0 0 0 6px rgba(51, 240, 160, 0.22); }
   70% { transform: scale(0.985); }
-  100% { transform: scale(1); box-shadow: 0 0 0 3px rgba(47, 143, 91, 0.08); }
+  100% { transform: scale(1); box-shadow: 0 4px 0 var(--mint), 0 0 0 3px rgba(51, 240, 160, 0.12); }
 }
 
 @keyframes wrong-wobble {
@@ -958,25 +1159,45 @@ input[type="radio"] {
 }
 
 @keyframes result-stage {
-  0% { transform: translateY(18px) scale(0.96); opacity: 0; }
-  100% { transform: translateY(0) scale(1); opacity: 1; }
+  0% { transform: translateY(34px) scale(0.88) rotateX(10deg); opacity: 0; filter: blur(10px); }
+  45% { transform: translateY(-8px) scale(1.035) rotateX(0deg); opacity: 1; filter: blur(0); }
+  100% { transform: translateY(0) scale(1); opacity: 1; filter: blur(0); }
 }
 
 @keyframes score-scramble {
-  0% { transform: translateX(-1px) rotate(-0.35deg); color: var(--clr-blue); }
-  50% { transform: translateX(1px) rotate(0.35deg); color: var(--clr-red); }
-  100% { transform: translateX(0) rotate(0deg); color: var(--clr-ink); }
+  0% { transform: translateX(-3px) skewX(-3deg) rotate(-0.5deg); color: var(--gold); }
+  35% { transform: translateX(3px) skewX(2deg) rotate(0.5deg); color: var(--pink); }
+  70% { transform: translateX(-1px) skewX(4deg) rotate(-0.2deg); color: var(--cyan); }
+  100% { transform: translateX(2px) skewX(0deg) rotate(0deg); color: var(--ink); }
+}
+
+@keyframes score-glow {
+  0%, 100% { text-shadow: 0 8px 22px rgba(8, 4, 20, 0.3), 0 0 0 rgba(255, 201, 74, 0); }
+  50% { text-shadow: 0 10px 28px rgba(8, 4, 20, 0.4), 0 0 34px rgba(255, 201, 74, 0.45); }
+}
+
+@keyframes reveal-spotlight {
+  0% { opacity: 0; transform: scale(0.74) rotate(-18deg); }
+  18% { opacity: 0.95; }
+  68% { opacity: 0.78; transform: scale(1.08) rotate(14deg); }
+  100% { opacity: 0.15; transform: scale(1.22) rotate(32deg); }
+}
+
+@keyframes cinematic-eyebrow {
+  0% { opacity: 0; transform: translateY(-10px); letter-spacing: 0.34em; }
+  100% { opacity: 1; transform: translateY(0); letter-spacing: 0.1em; }
 }
 
 @keyframes final-score-pop {
-  0% { transform: scale(0.72) rotate(-2deg); opacity: 0; color: var(--clr-red); }
-  55% { transform: scale(1.16) rotate(1deg); opacity: 1; color: var(--clr-blue); }
-  75% { transform: scale(0.96) rotate(0deg); }
-  100% { transform: scale(1); color: var(--clr-ink); }
+  0% { transform: scale(0.34) rotate(-6deg); opacity: 0; color: var(--pink); filter: blur(8px); }
+  42% { transform: scale(1.28) rotate(2deg); opacity: 1; color: var(--gold); filter: blur(0); }
+  62% { transform: scale(0.91) rotate(-0.8deg); color: var(--mint); }
+  82% { transform: scale(1.06) rotate(0.4deg); }
+  100% { transform: scale(1); color: var(--ink); text-shadow: 0 10px 28px rgba(255, 201, 74, 0.35); }
 }
 
 @keyframes reveal-slide-up {
-  0% { opacity: 0; transform: translateY(12px); }
+  0% { opacity: 0; transform: translateY(18px) scale(0.96); filter: blur(5px); }
   100% { opacity: 1; transform: translateY(0); }
 }
 
@@ -987,7 +1208,7 @@ input[type="radio"] {
 
 @keyframes confetti-fall {
   0%   { transform: translateY(0) rotate(0deg); opacity: 1; }
-  100% { transform: translateY(105vh) rotate(600deg); opacity: 0.6; }
+  100% { transform: translateY(105vh) rotate(600deg); opacity: 0.65; }
 }
 
 /* ---------------------------------------------------------------------
@@ -999,7 +1220,7 @@ input[type="radio"] {
   }
   .form-pane {
     border-right: none;
-    border-bottom: 1px solid var(--clr-border);
+    border-bottom: 2px dashed rgba(28, 16, 48, 0.16);
     padding-right: 0;
     padding-bottom: var(--space-6);
     margin-bottom: var(--space-6);
@@ -1017,20 +1238,8 @@ input[type="radio"] {
     flex-direction: column;
     align-items: flex-start;
   }
-  .creator-sheet,
-  .question-card {
-    padding-left: var(--space-5);
-  }
-  .creator-sheet::before,
-  .question-card::before {
-    display: none;
-  }
-}
-
-@media (max-width: 420px) {
-  .step-label,
-  .steps span {
-    letter-spacing: 0.01em;
+  .card {
+    padding: var(--space-5);
   }
 }
 
@@ -1039,11 +1248,18 @@ input[type="radio"] {
 --------------------------------------------------------------------- */
 .btn:focus-visible,
 .answer-btn:focus-visible,
-.sound-toggle:focus-visible,
 .question-item-delete:focus-visible,
 input[type="radio"]:focus-visible {
-  outline: 2px solid var(--clr-blue);
-  outline-offset: 2px;
+  outline: 3px solid var(--ink);
+  outline-offset: 3px;
+}
+
+/* The sound toggle sits directly on the dark stage rather than a cue
+   card, so it needs a focus ring with contrast against a dark
+   backdrop instead — gold, not ink. */
+.sound-toggle:focus-visible {
+  outline: 3px solid var(--gold);
+  outline-offset: 3px;
 }
 
 @media (prefers-reduced-motion: reduce) {
