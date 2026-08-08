@@ -26,6 +26,8 @@ let quizQuestions = [];
 
 let currentQuestionIndex = 0; // which question Player Mode is showing
 let score = 0;                // correct answers in the current playthrough
+let streak = 0;               // consecutive correct answers
+let isPlaying = false;        // true if a quiz is in progress
 let isAnswerLocked = false;   // true while feedback is showing, blocks double answers
 let timeLeft = 0;             // seconds left on the current question's timer
 let timerIntervalId = null;   // handle returned by setInterval, so we can clearInterval it
@@ -178,6 +180,8 @@ const startHintEl = document.getElementById("start-hint");
 
 // Player mode
 const progressFillEl = document.getElementById("progress-fill");
+const streakContainerEl = document.getElementById("streak-container");
+const streakTextEl = document.getElementById("streak-text");
 const questionCounterEl = document.getElementById("question-counter");
 const timerWrapperEl = document.getElementById("timer-wrapper");
 const timerRingProgressEl = document.getElementById("timer-ring-progress");
@@ -230,6 +234,7 @@ function showScreen(name) {
 function handleAddQuestion(event) {
   event.preventDefault();
   clearFormError();
+  playClick();
 
   const questionText = questionTextInput.value.trim();
   const choices = choiceInputs.map((input) => input.value.trim());
@@ -258,6 +263,7 @@ function handleAddQuestion(event) {
 
   renderQuestionList();
   updateStartButtonState();
+  saveState();
 
   questionForm.reset();
   questionTextInput.focus();
@@ -331,12 +337,14 @@ function buildQuestionListItem(question, index) {
 function handleQuestionListClick(event) {
   const deleteBtn = event.target.closest(".question-item-delete");
   if (!deleteBtn) return;
+  playClick();
 
   const id = deleteBtn.dataset.id;
   quizQuestions = quizQuestions.filter((question) => question.id !== id);
 
   renderQuestionList();
   updateStartButtonState();
+  saveState();
 }
 
 /** Enables "Start Quiz" only once there's at least one question. */
@@ -352,9 +360,13 @@ function updateStartButtonState() {
 
 function handleStartQuiz() {
   if (quizQuestions.length === 0) return;
+  playClick();
 
   currentQuestionIndex = 0;
   score = 0;
+  streak = 0;
+  isPlaying = true;
+  saveState();
   setProgress(0);
   preloadDrumrollAudio();
   primeRevealAudio();
@@ -460,7 +472,16 @@ function handleAnswerClick(event) {
 
   if (isCorrect) {
     score += 1;
+    streak += 1;
+    playCorrectSound();
+  } else {
+    streak = 0;
+    playWrongSound();
   }
+
+  updateStreakVisual();
+
+  saveState();
 
   const feedbackType = isCorrect ? "correct" : "incorrect";
   const feedbackDuration = getFeedbackDuration(feedbackType);
@@ -484,6 +505,11 @@ function handleTimeUp() {
   const question = quizQuestions[currentQuestionIndex];
 
   const feedbackDuration = getFeedbackDuration("timeout");
+  streak = 0;
+  updateStreakVisual();
+  saveState();
+  playWrongSound();
+
   const isFinalQuestion = currentQuestionIndex === quizQuestions.length - 1;
 
   const feedbackAudio = playMemeSound("timeout", feedbackDuration, {
@@ -699,10 +725,29 @@ function setProgress(fraction) {
   progressFillEl.style.width = `${percent}%`;
 }
 
+function updateStreakVisual() {
+  if (!streakContainerEl || !streakTextEl) return;
+
+  streakTextEl.textContent = streak;
+
+  if (streak > 0) {
+    streakContainerEl.classList.add("active");
+    if (streak >= 3) {
+      streakContainerEl.classList.add("on-fire");
+    } else {
+      streakContainerEl.classList.remove("on-fire");
+    }
+  } else {
+    streakContainerEl.classList.remove("active", "on-fire");
+  }
+}
+
 function advanceToNextQuestion() {
   stopActiveMemeAudio();
   hideMemeReaction();
   currentQuestionIndex += 1;
+  setProgress((currentQuestionIndex) / quizQuestions.length);
+  saveState();
 
   if (currentQuestionIndex >= quizQuestions.length) {
     playRevealDrumroll();
@@ -720,6 +765,8 @@ function advanceToNextQuestion() {
 --------------------------------------------------------------------- */
 
 function showEndScreen() {
+  isPlaying = false;
+  clearState();
   const total = quizQuestions.length;
   const percentage = Math.round((score / total) * 100);
   const revealDelayMs = getRevealDelayMs();
@@ -1297,6 +1344,7 @@ function launchConfetti() {
 }
 
 function handleCreateNewQuiz() {
+  playClick();
   clearTimeout(feedbackTimeoutId);
   clearTimeout(questionTransitionTimeoutId);
   clearEndRevealTimers();
@@ -1304,6 +1352,13 @@ function handleCreateNewQuiz() {
   quizQuestions = [];
   currentQuestionIndex = 0;
   score = 0;
+  streak = 0;
+  isPlaying = false;
+  try {
+    localStorage.removeItem("quiz-builder-state");
+  } catch (e) {
+    console.warn("Could not clear state from localStorage:", e);
+  }
   confettiContainer.innerHTML = ""; // clear out any leftover confetti pieces
 
   renderQuestionList();
@@ -1322,6 +1377,93 @@ answerButtons.forEach((button) => button.addEventListener("click", handleAnswerC
 newQuizBtn.addEventListener("click", handleCreateNewQuiz);
 
 /* ---------------------------------------------------------------------
+   STATE PERSISTENCE
+--------------------------------------------------------------------- */
+function saveState() {
+  try {
+    const state = {
+      quizQuestions,
+      currentQuestionIndex,
+      score,
+      streak,
+      isPlaying
+    };
+    localStorage.setItem("quiz-builder-state", JSON.stringify(state));
+  } catch (e) {
+    console.warn("Could not save state to localStorage:", e);
+  }
+}
+
+function loadState() {
+  try {
+    const stateStr = localStorage.getItem("quiz-builder-state");
+    if (stateStr) {
+      const state = JSON.parse(stateStr);
+      quizQuestions = state.quizQuestions || [];
+      currentQuestionIndex = state.currentQuestionIndex || 0;
+      score = state.score || 0;
+      streak = state.streak || 0;
+      isPlaying = state.isPlaying || false;
+      return true;
+    }
+  } catch (e) {
+    console.warn("Could not load state from localStorage:", e);
+  }
+  return false;
+}
+
+function clearState() {
+  try {
+    const stateStr = localStorage.getItem("quiz-builder-state");
+    if (stateStr) {
+      const state = JSON.parse(stateStr);
+      const partialState = {
+        quizQuestions: state.quizQuestions || [],
+        currentQuestionIndex: 0,
+        score: 0,
+        streak: 0,
+        isPlaying: false
+      };
+      localStorage.setItem("quiz-builder-state", JSON.stringify(partialState));
+    }
+  } catch (e) {
+    console.warn("Could not clear state from localStorage:", e);
+  }
+}
+
+/* ---------------------------------------------------------------------
+   AUDIO SCAFFOLDING
+--------------------------------------------------------------------- */
+
+/**
+ * Play a correct sound. Users can swap the src with their own .wav/.mp3 file later.
+ */
+function playCorrectSound() {
+  if (!isSoundEnabled) return;
+  const audio = new Audio("assets/correct.mp3");
+  audio.play().catch(e => console.warn("Audio play failed:", e));
+}
+
+/**
+ * Play an incorrect sound. Users can swap the src with their own .wav/.mp3 file later.
+ */
+function playWrongSound() {
+  if (!isSoundEnabled) return;
+  const audio = new Audio("assets/wrong.mp3");
+  audio.play().catch(e => console.warn("Audio play failed:", e));
+}
+
+/**
+ * Play a generic UI click sound. Users can swap the src with their own .wav/.mp3 file later.
+ */
+function playClick() {
+  if (!isSoundEnabled) return;
+  const audio = new Audio("assets/click.mp3");
+  audio.play().catch(e => console.warn("Audio play failed:", e));
+}
+
+
+/* ---------------------------------------------------------------------
    8. INIT
    The <script> tag uses `defer`, so the DOM is already fully parsed by
    the time this file runs -- no DOMContentLoaded listener needed.
@@ -1331,9 +1473,21 @@ function init() {
   updateSoundToggleVisual();
   preloadDrumrollAudio();
   loadDrumrollAudioBuffer();
+
+  const hasState = loadState();
+
   renderQuestionList();
   updateStartButtonState();
-  showScreen("creator");
+
+  if (hasState && isPlaying) {
+    showScreen("player");
+    loadQuestion();
+    updateStreakVisual();
+    // Re-apply progress visual since loadQuestion does not do it
+    setProgress((currentQuestionIndex) / quizQuestions.length);
+  } else {
+    showScreen("creator");
+  }
 }
 
 init();
