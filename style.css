@@ -375,7 +375,8 @@ ul {
 }
 .btn-primary:hover:not(:disabled) {
   background: var(--gold-bright);
-  box-shadow: 0 8px 0 var(--ink);
+  box-shadow: 0 8px 0 var(--ink), 0 0 15px rgba(255, 201, 74, 0.5);
+  transform: translateY(-3px) scale(1.02);
 }
 .btn-primary:active:not(:disabled) {
   box-shadow: 0 2px 0 var(--ink);
@@ -602,6 +603,49 @@ input[type="radio"] {
    on a cue card, so its text uses the on-stage color family. */
 .quiz-meta {
   margin-bottom: var(--space-5);
+  position: relative;
+}
+
+.streak-container {
+  position: absolute;
+  top: -30px;
+  right: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: var(--stage-2);
+  padding: 0.2rem 0.6rem;
+  border-radius: var(--radius-pill);
+  border: 1.5px solid rgba(255, 77, 126, 0.4);
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: var(--pink-soft);
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.streak-container.active {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.streak-container.on-fire {
+  border-color: var(--gold);
+  color: var(--gold-bright);
+  box-shadow: 0 0 10px rgba(255, 201, 74, 0.6);
+  animation: flame-flicker 1.5s infinite alternate ease-in-out;
+}
+
+.streak-icon {
+  font-size: 1rem;
+}
+
+@keyframes flame-flicker {
+  0% { transform: scale(1); box-shadow: 0 0 10px rgba(255, 201, 74, 0.5); }
+  50% { transform: scale(1.05); box-shadow: 0 0 15px rgba(255, 77, 126, 0.7); }
+  100% { transform: scale(1); box-shadow: 0 0 10px rgba(255, 201, 74, 0.5); }
 }
 
 .quiz-meta.meta-pop {
@@ -878,7 +922,7 @@ input[type="radio"] {
   border-color: var(--mint);
   color: var(--mint-text);
   box-shadow: 0 4px 0 var(--mint);
-  animation: correct-pop 0.62s cubic-bezier(0.18, 1.35, 0.45, 1) both;
+  animation: correct-pop 0.62s cubic-bezier(0.18, 1.35, 0.45, 1) both, correct-flash 0.6s ease-in-out;
 }
 .answer-btn.correct .answer-letter {
   background: var(--mint);
@@ -891,7 +935,7 @@ input[type="radio"] {
   border-color: var(--pink);
   color: var(--pink-text);
   box-shadow: 0 4px 0 var(--pink);
-  animation: wrong-wobble 0.62s ease both;
+  animation: wrong-wobble 0.62s ease both, incorrect-flash 0.6s ease-in-out;
 }
 .answer-btn.incorrect .answer-letter {
   background: var(--pink);
@@ -1138,6 +1182,16 @@ input[type="radio"] {
   48% { transform: translateX(10px) rotate(1.4deg); }
   62% { transform: translateX(-6px) rotate(-0.8deg); }
   78% { transform: translateX(4px) rotate(0.5deg); }
+}
+
+@keyframes correct-flash {
+  0%, 100% { background-color: var(--mint-soft); }
+  30%, 70% { background-color: var(--mint); color: var(--ink); }
+}
+
+@keyframes incorrect-flash {
+  0%, 100% { background-color: var(--pink-soft); }
+  30%, 70% { background-color: var(--pink); color: var(--ink); }
 }
 
 @keyframes meme-pop {
