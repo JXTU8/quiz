@@ -850,25 +850,7 @@ function revealFinalScore(finalScore, total, percentage) {
 }
 
 function playRevealDrumroll() {
-  stopActiveMemeAudio();
-  if (!isSoundEnabled) return;
-
-  drumrollPrimeToken += 1;
-
-  // The decoded AudioBuffer is the actual fix for the startup gap: once
-  // decodeAudioData() has finished, every sample already sits in memory,
-  // so starting it is a synchronous, sample-accurate call with no network
-  // fetch and no seek to wait on. Seeking an <audio> element (the old
-  // path, kept below) can never fully close that gap, because seeking a
-  // compressed stream is itself an async decode operation -- it only
-  // looks synchronous. Only fall back to <audio> if the buffer never
-  // finished loading (slow network, or the host doesn't send CORS
-  // headers, so decodeAudioData() couldn't read the bytes).
-  if (drumrollAudioBuffer) {
-    playDrumrollFromBuffer(drumrollAudioBuffer);
-  } else {
-    playFallbackDrumrollAudio();
-  }
+  // Empty, drumroll audio removed
 }
 
 function getDrumrollAudio() {
@@ -1117,24 +1099,7 @@ function getRevealAudioContext() {
 }
 
 function playRevealImpactSound() {
-  if (!isSoundEnabled) return;
-
-  const audioContext = getRevealAudioContext();
-  if (!audioContext || audioContext.state === "suspended") return;
-
-  const now = audioContext.currentTime;
-  const oscillator = audioContext.createOscillator();
-  const gain = audioContext.createGain();
-  oscillator.type = "sine";
-  oscillator.frequency.setValueAtTime(150, now);
-  oscillator.frequency.exponentialRampToValueAtTime(44, now + 0.38);
-  gain.gain.setValueAtTime(0.0001, now);
-  gain.gain.exponentialRampToValueAtTime(0.42, now + 0.018);
-  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.55);
-  oscillator.connect(gain);
-  gain.connect(audioContext.destination);
-  oscillator.start(now);
-  oscillator.stop(now + 0.58);
+  // Empty, impact sound removed
 }
 
 /**
@@ -1150,7 +1115,8 @@ function playConfettiExplosionSound() {
   const audioContext = getRevealAudioContext();
   if (!audioContext || audioContext.state === "suspended") return;
 
-  const now = audioContext.currentTime;
+  // Sync with the 42% peak of the 1.05s final-score-pop animation
+  const now = audioContext.currentTime + 0.44;
 
   const boom = audioContext.createOscillator();
   const boomGain = audioContext.createGain();
