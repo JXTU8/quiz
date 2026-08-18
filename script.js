@@ -35,6 +35,11 @@ let isSoundEnabled = true;    // global sound preference, controlled by the head
 let activeMemeAudio = null;   // the currently playing feedback sound, if any
 let drumrollAudio = null;     // preloaded result reveal sound (fallback path)
 let audioFadeTimeoutId = null;
+let actx = null;
+let bgmTimer = null;
+let bgmStep = 0;
+const bgmNotes = [523.25,659.25,783.99,659.25, 587.33,698.46,880.00,698.46, 523.25,659.25,783.99,1046.50, 987.77,880.00,783.99,659.25];
+
 let audioFadeIntervalId = null;
 let drumrollPrimeToken = 0;
 let revealAudioContext = null;
@@ -712,9 +717,11 @@ function handleSoundToggleClick() {
   isSoundEnabled = !isSoundEnabled;
   if (!isSoundEnabled) {
     stopActiveMemeAudio();
+    stopBgm();
   } else {
     preloadDrumrollAudio();
     primeRevealAudio();
+    startBgm();
   }
   saveSoundPreference();
   updateSoundToggleVisual();
@@ -1432,34 +1439,66 @@ function clearState() {
 }
 
 /* ---------------------------------------------------------------------
-   AUDIO SCAFFOLDING
+   AUDIO SCAFFOLDING (Retro Synth)
 --------------------------------------------------------------------- */
 
-/**
- * Play a correct sound. Users can swap the src with their own .wav/.mp3 file later.
- */
+function ensureAudio(){
+  if(!actx){ actx = new (window.AudioContext||window.webkitAudioContext)(); }
+  if(actx.state === 'suspended'){ actx.resume(); }
+}
+
+function tone(freq,dur,type,vol,delay){
+  if(!isSoundEnabled) return;
+  ensureAudio();
+  const t0 = actx.currentTime + (delay||0);
+  const osc = actx.createOscillator();
+  const gain = actx.createGain();
+  osc.type = type||'square';
+  osc.frequency.setValueAtTime(freq,t0);
+  gain.gain.setValueAtTime(0,t0);
+  gain.gain.linearRampToValueAtTime(vol||0.15,t0+0.01);
+  gain.gain.exponentialRampToValueAtTime(0.001,t0+dur);
+  osc.connect(gain); gain.connect(actx.destination);
+  osc.start(t0); osc.stop(t0+dur+0.02);
+}
+
 function playCorrectSound() {
   if (!isSoundEnabled) return;
-  const audio = new Audio("assets/correct.mp3");
-  audio.play().catch(e => console.warn("Audio play failed:", e));
+  tone(659.25,0.09,'square',0.18,0);
+  tone(783.99,0.09,'square',0.18,0.09);
+  tone(1046.50,0.16,'square',0.2,0.18);
 }
 
-/**
- * Play an incorrect sound. Users can swap the src with their own .wav/.mp3 file later.
- */
 function playWrongSound() {
   if (!isSoundEnabled) return;
-  const audio = new Audio("assets/wrong.mp3");
-  audio.play().catch(e => console.warn("Audio play failed:", e));
+  tone(220,0.18,'sawtooth',0.18,0);
+  tone(164.81,0.28,'sawtooth',0.18,0.15);
 }
 
-/**
- * Play a generic UI click sound. Users can swap the src with their own .wav/.mp3 file later.
- */
 function playClick() {
   if (!isSoundEnabled) return;
-  const audio = new Audio("assets/click.mp3");
-  audio.play().catch(e => console.warn("Audio play failed:", e));
+  tone(440,0.06,'square',0.12,0);
+}
+
+function playWin() {
+  if (!isSoundEnabled) return;
+  [523.25,523.25,523.25,659.25,783.99,1046.50].forEach((f,i)=>tone(f,0.14,'square',0.18,i*0.1));
+}
+
+function startBgm(){
+  if(bgmTimer) return;
+  ensureAudio();
+  bgmStep = 0;
+  bgmTimer = setInterval(()=>{
+    if(!isSoundEnabled) return;
+    const f = bgmNotes[bgmStep % bgmNotes.length];
+    tone(f,0.14,'triangle',0.06,0);
+    bgmStep++;
+  },160);
+}
+
+function stopBgm(){
+  if(bgmTimer){ clearInterval(bgmTimer); bgmTimer=null; }
 }
 
 
@@ -1487,6 +1526,13 @@ function init() {
     setProgress((currentQuestionIndex) / quizQuestions.length);
   } else {
     showScreen("creator");
+  }
+
+  if (isSoundEnabled) {
+    // Autoplay policy might block this until user interaction
+    setTimeout(() => {
+        startBgm();
+    }, 100);
   }
 }
 
