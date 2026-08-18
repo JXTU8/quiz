@@ -71,9 +71,28 @@ body {
   pointer-events: none;
   z-index: 0;
 }
-.cloud1{top:30px;left:6%;transform:scale(1.6);}
-.cloud2{top:70px;right:8%;transform:scale(1.1);}
-.cloud3{top:20px;left:45%;transform:scale(1.3);}
+.cloud1{top:30px;left:6%;transform:scale(1.6);animation: drift 40s linear infinite;}
+.cloud2{top:70px;right:8%;transform:scale(1.1);animation: drift 60s linear infinite;}
+.cloud3{top:20px;left:45%;transform:scale(1.3);animation: drift 50s linear infinite;}
+
+@keyframes drift {
+  from { left: -10%; }
+  to { left: 110%; }
+}
+
+.scanlines {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.05),
+    rgba(0, 0, 0, 0.05) 1px,
+    transparent 1px,
+    transparent 4px
+  );
+}
 
 .bricks{
   position:fixed;
@@ -742,7 +761,14 @@ input[type="radio"] {
   height: 100%;
   width: 0%;
   background: var(--coin);
-  transition: width 0.4s ease;
+  transition: width 0.4s steps(10);
+  background-image: repeating-linear-gradient(
+    90deg,
+    var(--coin),
+    var(--coin) 10px,
+    var(--coin-dark) 10px,
+    var(--coin-dark) 12px
+  );
 }
 
 .quiz-meta-row {
@@ -785,7 +811,8 @@ input[type="radio"] {
 
 .timer-ring-progress {
   stroke: var(--pipe);
-  transition: stroke-dashoffset 1s linear, stroke 0.3s ease;
+  transition: stroke-dashoffset 1s steps(15), stroke 0.3s ease;
+  stroke-dasharray: 4 2; /* create segmented look for the timer */
 }
 
 .timer-text {

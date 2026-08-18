@@ -38,7 +38,18 @@ let audioFadeTimeoutId = null;
 let actx = null;
 let bgmTimer = null;
 let bgmStep = 0;
-const bgmNotes = [523.25,659.25,783.99,659.25, 587.33,698.46,880.00,698.46, 523.25,659.25,783.99,1046.50, 987.77,880.00,783.99,659.25];
+// A slightly less annoying, more adventurous, slightly slower 8-bit melody
+// (C major arpeggios fading into F major, keeping it steady)
+const bgmNotes = [
+  261.63, 329.63, 392.00, 523.25, // C4, E4, G4, C5
+  392.00, 329.63, 261.63, 392.00, // G4, E4, C4, G4
+  349.23, 440.00, 523.25, 698.46, // F4, A4, C5, F5
+  523.25, 440.00, 349.23, 523.25, // C5, A4, F4, C5
+  392.00, 493.88, 587.33, 783.99, // G4, B4, D5, G5
+  587.33, 493.88, 392.00, 493.88, // D5, B4, G4, B4
+  261.63, 329.63, 392.00, 523.25, // C4, E4, G4, C5
+  523.25, 0, 0, 0                 // C5, rest, rest, rest
+];
 
 let audioFadeIntervalId = null;
 let drumrollPrimeToken = 0;
@@ -772,6 +783,7 @@ function advanceToNextQuestion() {
 --------------------------------------------------------------------- */
 
 function showEndScreen() {
+  stopBgm();
   isPlaying = false;
   clearState();
   const total = quizQuestions.length;
@@ -1492,9 +1504,11 @@ function startBgm(){
   bgmTimer = setInterval(()=>{
     if(!isSoundEnabled) return;
     const f = bgmNotes[bgmStep % bgmNotes.length];
-    tone(f,0.14,'triangle',0.06,0);
+    if (f > 0) {
+      tone(f,0.14,'triangle',0.06,0);
+    }
     bgmStep++;
-  },160);
+  }, 180); // slightly slower interval
 }
 
 function stopBgm(){
