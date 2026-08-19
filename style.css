@@ -51,15 +51,60 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 
-  /* The stage: a deep violet backdrop with warm spotlight glow pooled
-     near the top and faint colored wash at the corners, instead of a
-     flat dark panel. */
-  background-color: var(--stage);
-  background-image:
-    radial-gradient(1100px 620px at 50% -8%, rgba(255, 201, 74, 0.16), transparent 60%),
-    radial-gradient(900px 520px at 88% 16%, rgba(255, 77, 126, 0.11), transparent 62%),
-    radial-gradient(900px 620px at 6% 90%, rgba(72, 224, 255, 0.09), transparent 60%);
-  background-repeat: no-repeat;
+  background: linear-gradient(var(--sky), var(--sky) 70%, var(--pipe-dark) 70%);
+  image-rendering: pixelated;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* cloud + brick decor */
+.cloud{
+  position:absolute;
+  background:var(--white);
+  border-radius:0;
+  box-shadow:
+    16px 0 0 var(--white), -16px 0 0 var(--white),
+    8px -10px 0 var(--white), -8px -10px 0 var(--white),
+    0 -14px 0 var(--white);
+  width:24px;height:14px;
+  opacity:.9;
+  pointer-events: none;
+  z-index: 0;
+}
+.cloud1{top:30px;left:6%;transform:scale(1.6);animation: drift 40s linear infinite;}
+.cloud2{top:70px;right:8%;transform:scale(1.1);animation: drift 60s linear infinite;}
+.cloud3{top:20px;left:45%;transform:scale(1.3);animation: drift 50s linear infinite;}
+
+@keyframes drift {
+  from { left: -10%; }
+  to { left: 110%; }
+}
+
+.scanlines {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.05),
+    rgba(0, 0, 0, 0.05) 1px,
+    transparent 1px,
+    transparent 4px
+  );
+}
+
+.bricks{
+  position:fixed;
+  left:0;right:0;bottom:0;
+  height:30%;
+  background:
+    repeating-linear-gradient(0deg, var(--brick-dark) 0 4px, transparent 4px 40px),
+    repeating-linear-gradient(90deg, var(--brick-dark) 0 4px, transparent 4px 40px),
+    var(--brick);
+  border-top:6px solid var(--black);
+  z-index: 0;
+  pointer-events: none;
 }
 
 h1, h2, p, ul, fieldset, figure {
@@ -95,39 +140,47 @@ ul {
    2. Design tokens
 --------------------------------------------------------------------- */
 :root {
-  /* Stage — the dark backdrop */
-  --stage: #150b2e;
-  --stage-2: #22134d;
+  --sky:#5C94FC;
+  --sky-dark:#3B6FD6;
+  --brick:#B75E27;
+  --brick-dark:#7A3E14;
+  --coin:#FBD000;
+  --coin-dark:#C79A00;
+  --pipe:#00A800;
+  --pipe-dark:#046B04;
+  --mario-red:#E52521;
+  --mario-red-dark:#9E1917;
+  --white:#FFF8E7;
+  --black:#2B1D0E;
 
-  /* Cue card — bright surfaces floating on the stage */
-  --cue: #fff6e6;
-  --cue-white: #fffdf8;
+  /* Legacy variable mapping to the new retro palette so we don't break
+     too much internal HTML layout. */
+  --stage: var(--sky);
+  --stage-2: var(--sky-dark);
 
-  /* Text set on a cue card */
-  --ink: #1c1030;
-  --ink-soft: #5b4e78;
+  --cue: var(--white);
+  --cue-white: #fff;
 
-  /* Text set directly on the stage */
-  --on-stage: #f3ecff;
-  --on-stage-soft: #b6a8dd;
+  --ink: var(--black);
+  --ink-soft: #555;
 
-  /* Marquee bulbs — a lighting-gel palette, each with one job:
-     gold = brand/primary, pink = incorrect/hot, cyan = info/timer,
-     mint = correct. */
-  --gold: #ffc94a;
-  --gold-bright: #ffe08a;
-  --pink: #ff4d7e;
-  --pink-soft: #ffe3ea;
-  --pink-text: #b8215a;
-  --cyan: #48e0ff;
-  --mint: #33f0a0;
-  --mint-soft: #e0fff2;
-  --mint-text: #0e7a52;
+  --on-stage: var(--black);
+  --on-stage-soft: #333;
+
+  --gold: var(--coin);
+  --gold-bright: #FFEE9C;
+  --pink: var(--mario-red);
+  --pink-soft: #ffb8b7;
+  --pink-text: var(--mario-red-dark);
+  --cyan: var(--sky);
+  --mint: var(--pipe);
+  --mint-soft: #a8f0a8;
+  --mint-text: var(--pipe-dark);
 
   /* Typography */
-  --font-display: "Bungee", "Arial Narrow", Impact, sans-serif;
-  --font-body: "Space Grotesk", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  --font-mono: "Space Mono", ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, monospace;
+  --font-display: "Press Start 2P", monospace;
+  --font-body: "Press Start 2P", monospace;
+  --font-mono: "Press Start 2P", monospace;
 
   /* Spacing scale */
   --space-1: 0.25rem;
@@ -139,11 +192,11 @@ ul {
   --space-7: 3rem;
 
   /* Radius & shadow */
-  --radius-sm: 10px;
-  --radius-md: 14px;
-  --radius-lg: 22px;
-  --radius-pill: 999px;
-  --shadow-float: 0 30px 70px -24px rgba(8, 4, 20, 0.75), 0 0 0 1px rgba(255, 201, 74, 0.10);
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-pill: 0px;
+  --shadow-float: 8px 8px 0 rgba(0,0,0,0.35);
 }
 
 /* ---------------------------------------------------------------------
@@ -153,42 +206,32 @@ ul {
   max-width: 1000px;
   margin: 0 auto;
   padding: var(--space-6) var(--space-5) var(--space-7);
+  position: relative;
+  z-index: 2;
 }
 
 .app-header {
   position: relative;
-  overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-4);
   flex-wrap: wrap;
   padding: var(--space-5) var(--space-6);
-  padding-bottom: calc(var(--space-4) + 12px);
   margin-bottom: var(--space-6);
-  background: linear-gradient(175deg, var(--stage-2), var(--stage) 75%);
-  border: 2px solid rgba(255, 201, 74, 0.22);
+  background: var(--white);
+  border: 6px solid var(--black);
   border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-float);
 }
 
-/* Signature element: a chasing marquee-bulb strip along the header's
-   bottom edge, like the light trim on a theater marquee. Two radial
-   dot layers, offset by half a cycle, animate in lockstep so the
-   gold/pink dots appear to travel. */
-.app-header::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 7px;
-  background-image:
-    radial-gradient(circle, var(--gold) 2.3px, transparent 2.5px),
-    radial-gradient(circle, var(--pink) 2.3px, transparent 2.5px);
-  background-size: 28px 100%, 28px 100%;
-  background-position: 0 50%, 14px 50%;
-  background-repeat: repeat-x;
-  animation: bulb-chase 1.1s linear infinite;
+/* inner border detail */
+.app-header::before {
+  content:"";
+  position:absolute;inset:6px;
+  border:3px solid var(--black);
+  pointer-events:none;
+  opacity:.15;
 }
 
 .brand {
@@ -215,13 +258,8 @@ ul {
 .brand h1 {
   font-size: clamp(1.15rem, 4vw, 1.5rem);
   letter-spacing: 0.02em;
-  /* Gradient marquee lettering, with a solid fallback color in case
-     background-clip: text isn't supported. */
-  color: var(--gold);
-  background: linear-gradient(90deg, var(--gold-bright), var(--pink));
-  background-clip: text;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--mario-red-dark);
+  text-shadow: 2px 2px 0 var(--coin);
 }
 
 /* ---- Step indicator: a lit marquee track, one bulb per step ---- */
@@ -278,33 +316,31 @@ ul {
   gap: var(--space-2);
   min-height: 42px;
   padding: 0.5rem 1rem;
-  border: 2.5px solid var(--ink);
+  border: 4px solid var(--ink);
   border-radius: var(--radius-pill);
-  background: var(--cue-white);
+  background: var(--gold);
   color: var(--ink);
   font-family: var(--font-mono);
   font-size: 0.76rem;
   font-weight: 700;
   letter-spacing: 0.03em;
   text-transform: uppercase;
-  box-shadow: 0 4px 0 var(--ink);
-  transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+  box-shadow: 5px 5px 0 rgba(0,0,0,.4);
+  transition: transform 0.05s ease, filter 0.05s ease;
 }
 
 .sound-toggle:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 0 var(--ink);
+  filter: brightness(1.08);
 }
 
 .sound-toggle:active {
-  transform: translateY(2px);
-  box-shadow: 0 1px 0 var(--ink);
+  transform: translate(4px, 4px);
+  box-shadow: 1px 1px 0 rgba(0,0,0,.4);
 }
 
 .sound-toggle[aria-pressed="false"] {
-  background: var(--pink-soft);
-  color: var(--pink-text);
-  box-shadow: 0 4px 0 rgba(184, 33, 90, 0.45);
+  background: #9a9a9a;
+  color: var(--white);
 }
 
 .sound-toggle-icon {
@@ -318,10 +354,19 @@ ul {
 .card {
   background: var(--cue);
   color: var(--ink);
-  border: 3px solid var(--gold);
+  border: 6px solid var(--ink);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-float);
   padding: var(--space-6);
+  position: relative;
+}
+
+.card::before {
+  content:"";
+  position:absolute;inset:6px;
+  border:3px solid var(--black);
+  pointer-events:none;
+  opacity:.15;
 }
 
 .card h2 {
@@ -341,26 +386,29 @@ ul {
   width: auto;
   padding: 0.95rem 1.6rem;
   border-radius: var(--radius-md);
-  border: 3px solid var(--ink);
+  border: 4px solid var(--ink);
   font-family: var(--font-display);
   font-size: 0.92rem;
   line-height: 1;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  color: var(--ink);
-  transition: transform 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+  color: var(--white);
+  transition: transform 0.05s ease, filter 0.05s ease;
+  background: var(--pipe);
+  box-shadow: 5px 5px 0 rgba(0,0,0,.4);
 }
 
 .btn:hover:not(:disabled) {
-  transform: translateY(-2px);
+  filter: brightness(1.08);
 }
 
 .btn:active:not(:disabled) {
-  transform: translateY(3px);
+  transform: translate(4px, 4px);
+  box-shadow: 1px 1px 0 rgba(0,0,0,.4);
 }
 
 .btn:disabled {
-  opacity: 0.4;
+  opacity: 0.5;
   cursor: not-allowed;
   transform: none;
 }
@@ -370,16 +418,10 @@ ul {
 }
 
 .btn-primary {
-  background: var(--gold);
-  box-shadow: 0 6px 0 var(--ink);
+  background: var(--mario-red);
 }
 .btn-primary:hover:not(:disabled) {
-  background: var(--gold-bright);
-  box-shadow: 0 8px 0 var(--ink), 0 0 15px rgba(255, 201, 74, 0.5);
-  transform: translateY(-3px) scale(1.02);
-}
-.btn-primary:active:not(:disabled) {
-  box-shadow: 0 2px 0 var(--ink);
+  background: var(--mario-red);
 }
 
 .field {
@@ -400,7 +442,7 @@ ul {
 input[type="text"] {
   width: 100%;
   padding: 0.8rem 1rem;
-  border: 2.5px solid rgba(28, 16, 48, 0.18);
+  border: 4px solid var(--black);
   border-radius: var(--radius-sm);
   font-family: var(--font-body);
   font-size: 1rem;
@@ -412,13 +454,13 @@ input[type="text"] {
 input[type="text"]:focus {
   outline: none;
   border-color: var(--ink);
-  box-shadow: 0 0 0 4px rgba(255, 201, 74, 0.3);
+  box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.3);
 }
 
 input[type="radio"] {
   width: 20px;
   height: 20px;
-  accent-color: var(--gold);
+  accent-color: var(--mario-red-dark);
   flex-shrink: 0;
 }
 
@@ -443,10 +485,6 @@ input[type="radio"] {
   margin-bottom: var(--space-3);
 }
 
-/* Chip badges instead of plain letters — filled with a lighting-gel
-   accent per choice (A/B/C/D -> gold/cyan/pink/mint) so the same
-   four colors reappear once play starts. Text stays ink-on-bright so
-   contrast holds regardless of which accent lands on a given chip. */
 .choice-letter {
   display: inline-flex;
   align-items: center;
@@ -454,7 +492,7 @@ input[type="radio"] {
   width: 26px;
   height: 26px;
   flex-shrink: 0;
-  border: 2px solid var(--ink);
+  border: 4px solid var(--ink);
   border-radius: var(--radius-sm);
   background: rgba(28, 16, 48, 0.06);
   font-family: var(--font-display);
@@ -523,8 +561,7 @@ input[type="radio"] {
   color: var(--ink);
   background: var(--gold);
   padding: 0.28rem 0.65rem;
-  border: 2px solid var(--ink);
-  border-radius: var(--radius-pill);
+  border: 4px solid var(--ink);
 }
 
 .question-list {
@@ -543,9 +580,7 @@ input[type="radio"] {
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
   background: var(--cue-white);
-  border: 2px solid rgba(28, 16, 48, 0.1);
-  border-left: 4px solid var(--gold);
-  border-radius: var(--radius-sm);
+  border: 4px solid var(--ink);
 }
 
 .question-item-number {
@@ -554,7 +589,6 @@ input[type="radio"] {
   justify-content: center;
   width: 22px;
   height: 22px;
-  border-radius: 50%;
   background: var(--ink);
   color: var(--cue);
   font-family: var(--font-mono);
@@ -575,7 +609,6 @@ input[type="radio"] {
   flex-shrink: 0;
   width: 24px;
   height: 24px;
-  border-radius: 50%;
   font-size: 1rem;
   line-height: 1;
   color: var(--ink-soft);
@@ -613,14 +646,13 @@ input[type="radio"] {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  background: var(--stage-2);
+  background: var(--white);
   padding: 0.2rem 0.6rem;
-  border-radius: var(--radius-pill);
-  border: 1.5px solid rgba(255, 77, 126, 0.4);
+  border: 4px solid var(--black);
   font-family: var(--font-mono);
   font-weight: 700;
   font-size: 0.8rem;
-  color: var(--pink-soft);
+  color: var(--black);
   opacity: 0;
   transform: translateY(10px);
   transition: opacity 0.3s ease, transform 0.3s ease;
@@ -632,9 +664,8 @@ input[type="radio"] {
 }
 
 .streak-container.on-fire {
-  border-color: var(--gold);
-  color: var(--gold-bright);
-  box-shadow: 0 0 10px rgba(255, 201, 74, 0.6);
+  border-color: var(--mario-red-dark);
+  color: var(--mario-red-dark);
   animation: flame-flicker 1.5s infinite alternate ease-in-out;
 }
 
@@ -643,9 +674,9 @@ input[type="radio"] {
 }
 
 @keyframes flame-flicker {
-  0% { transform: scale(1); box-shadow: 0 0 10px rgba(255, 201, 74, 0.5); }
-  50% { transform: scale(1.05); box-shadow: 0 0 15px rgba(255, 77, 126, 0.7); }
-  100% { transform: scale(1); box-shadow: 0 0 10px rgba(255, 201, 74, 0.5); }
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
 }
 
 .quiz-meta.meta-pop {
@@ -719,10 +750,9 @@ input[type="radio"] {
 
 .progress-track {
   width: 100%;
-  height: 10px;
-  background: rgba(243, 236, 255, 0.14);
-  border: 1.5px solid rgba(243, 236, 255, 0.18);
-  border-radius: var(--radius-pill);
+  height: 16px;
+  background: #ddd;
+  border: 3px solid var(--black);
   overflow: hidden;
   margin-bottom: var(--space-3);
 }
@@ -730,10 +760,15 @@ input[type="radio"] {
 .progress-fill {
   height: 100%;
   width: 0%;
-  background: linear-gradient(90deg, var(--gold), var(--pink));
-  border-radius: var(--radius-pill);
-  transition: width 0.4s ease;
-  box-shadow: 0 0 12px rgba(255, 201, 74, 0.55);
+  background: var(--coin);
+  transition: width 0.4s steps(10);
+  background-image: repeating-linear-gradient(
+    90deg,
+    var(--coin),
+    var(--coin) 10px,
+    var(--coin-dark) 10px,
+    var(--coin-dark) 12px
+  );
 }
 
 .quiz-meta-row {
@@ -771,14 +806,13 @@ input[type="radio"] {
 }
 
 .timer-ring-bg {
-  stroke: rgba(243, 236, 255, 0.16);
+  stroke: #ddd;
 }
 
 .timer-ring-progress {
-  stroke: var(--cyan);
-  stroke-linecap: round;
-  transition: stroke-dashoffset 1s linear, stroke 0.3s ease;
-  filter: drop-shadow(0 0 6px rgba(72, 224, 255, 0.65));
+  stroke: var(--pipe);
+  transition: stroke-dashoffset 1s steps(15), stroke 0.3s ease;
+  stroke-dasharray: 4 2; /* create segmented look for the timer */
 }
 
 .timer-text {
@@ -794,38 +828,18 @@ input[type="radio"] {
 }
 
 .timer.timer-low .timer-ring-progress {
-  stroke: var(--pink);
-  filter: drop-shadow(0 0 8px rgba(255, 77, 126, 0.75));
+  stroke: var(--mario-red);
 }
 
 .timer.timer-low .timer-text {
-  color: var(--pink);
+  color: var(--mario-red);
   animation: pulse 1s ease-in-out infinite;
 }
 
-/* The question card gets the marquee-bulb strip along its top edge —
-   the same signature as the header, echoed here to mark "you're on
-   air" while a round is live. */
 .question-card {
   position: relative;
   overflow: hidden;
-  padding-top: calc(var(--space-6) + 11px);
-}
-
-.question-card::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 7px;
-  background-image:
-    radial-gradient(circle, var(--gold) 2.1px, transparent 2.3px),
-    radial-gradient(circle, var(--pink) 2.1px, transparent 2.3px);
-  background-size: 24px 100%, 24px 100%;
-  background-position: 0 50%, 12px 50%;
-  background-repeat: repeat-x;
-  animation: bulb-chase-tight 1s linear infinite;
+  padding-top: var(--space-6);
 }
 
 .question-card h2 {
@@ -833,7 +847,7 @@ input[type="radio"] {
   font-weight: 600;
   text-transform: none;
   letter-spacing: normal;
-  font-size: 1.4rem;
+  font-size: 1.1rem;
   line-height: 1.5;
   margin-bottom: var(--space-6);
 }
@@ -862,15 +876,14 @@ input[type="radio"] {
   min-height: 68px;
   padding: 1.05rem 1.15rem;
   border-radius: var(--radius-md);
-  border: 3px solid var(--ink);
-  background: var(--cue-white);
-  color: var(--ink);
+  border: 4px solid var(--ink);
+  background: var(--sky-dark);
+  color: var(--white);
   font-family: var(--font-body);
   font-size: 1.03rem;
   font-weight: 600;
-  box-shadow: 0 5px 0 var(--ink);
-  transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.15s ease,
-    border-color 0.15s ease, color 0.15s ease;
+  box-shadow: 5px 5px 0 rgba(0,0,0,.4);
+  transition: transform 0.05s ease, filter 0.05s ease;
 }
 
 .question-card.question-enter .answer-btn {
@@ -879,13 +892,12 @@ input[type="radio"] {
 }
 
 .answer-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 7px 0 var(--ink);
+  filter: brightness(1.08);
 }
 
 .answer-btn:active:not(:disabled) {
-  transform: translateY(3px);
-  box-shadow: 0 2px 0 var(--ink);
+  transform: translate(4px, 4px);
+  box-shadow: 1px 1px 0 rgba(0,0,0,.4);
 }
 
 .answer-btn:disabled {
@@ -903,7 +915,7 @@ input[type="radio"] {
   width: 30px;
   height: 30px;
   flex-shrink: 0;
-  border: 2.5px solid var(--ink);
+  border: 4px solid var(--ink);
   border-radius: var(--radius-sm);
   background: rgba(28, 16, 48, 0.06);
   font-family: var(--font-display);
@@ -918,29 +930,23 @@ input[type="radio"] {
 .answer-btn[data-index="3"] .answer-letter { background: var(--mint); }
 
 .answer-btn.correct {
-  background: var(--mint-soft);
-  border-color: var(--mint);
-  color: var(--mint-text);
-  box-shadow: 0 4px 0 var(--mint);
-  animation: correct-pop 0.62s cubic-bezier(0.18, 1.35, 0.45, 1) both, correct-flash 0.6s ease-in-out;
+  background: var(--pipe);
+  color: var(--white);
+  animation: correct-pop 0.62s cubic-bezier(0.18, 1.35, 0.45, 1) both;
 }
 .answer-btn.correct .answer-letter {
-  background: var(--mint);
-  border-color: var(--ink);
-  color: var(--ink);
+  background: var(--pipe);
+  color: var(--white);
 }
 
 .answer-btn.incorrect {
-  background: var(--pink-soft);
-  border-color: var(--pink);
-  color: var(--pink-text);
-  box-shadow: 0 4px 0 var(--pink);
-  animation: wrong-wobble 0.62s ease both, incorrect-flash 0.6s ease-in-out;
+  background: var(--mario-red);
+  color: var(--white);
+  animation: wrong-wobble 0.62s ease both;
 }
 .answer-btn.incorrect .answer-letter {
-  background: var(--pink);
-  border-color: var(--ink);
-  color: var(--ink);
+  background: var(--mario-red);
+  color: var(--white);
 }
 
 .answer-btn.dimmed {
@@ -960,34 +966,10 @@ input[type="radio"] {
   padding-top: calc(var(--space-6) + 14px);
   isolation: isolate;
   transform-origin: center;
-  box-shadow:
-    0 1px 2px rgba(8, 4, 20, 0.3),
-    0 22px 55px -28px rgba(8, 4, 20, 0.75);
 }
 
 .end-card.is-revealing {
   animation: result-stage 1.1s cubic-bezier(0.16, 1, 0.3, 1) both;
-  box-shadow:
-    0 0 0 2px rgba(255, 201, 74, 0.12),
-    0 24px 70px -24px rgba(255, 201, 74, 0.4),
-    0 0 70px rgba(255, 77, 126, 0.22);
-}
-
-.end-card::after {
-  content: "";
-  position: absolute;
-  inset: -18px;
-  z-index: -1;
-  border-radius: calc(var(--radius-lg) + 18px);
-  background:
-    conic-gradient(from 120deg, rgba(255, 201, 74, 0), rgba(255, 201, 74, 0.35), rgba(255, 77, 126, 0.32), rgba(72, 224, 255, 0.22), rgba(255, 201, 74, 0)),
-    radial-gradient(circle at 50% 35%, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0) 48%);
-  opacity: 0;
-  filter: blur(18px);
-}
-
-.end-card.is-revealing::after {
-  animation: reveal-spotlight 4.2s ease both;
 }
 
 .end-card.is-revealing .end-eyebrow {
@@ -996,7 +978,7 @@ input[type="radio"] {
 
 .end-card.is-revealing .end-score,
 .end-card.is-revealing .end-percentage {
-  animation: score-scramble 0.12s steps(2, end) infinite, score-glow 1s ease-in-out infinite;
+  animation: score-scramble 0.12s steps(2, end) infinite;
 }
 
 .end-card.score-revealed .end-score {
@@ -1015,42 +997,9 @@ input[type="radio"] {
   isolation: isolate;
 }
 
-/* An extra, brighter gold/pink bloom that only appears once the end
-   screen is active — the lights coming up for the big moment, layered
-   on top of the constant ambient stage glow from the body background. */
-#end-screen.active::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background:
-    radial-gradient(900px 520px at 50% 20%, rgba(255, 201, 74, 0.2), transparent 46%),
-    radial-gradient(700px 520px at 50% 62%, rgba(255, 77, 126, 0.12), transparent 55%);
-}
-
-/* Signature element (reprised): a punched/perforated top edge, like a
-   ticket stub torn from a redemption counter. The holes are painted
-   in the stage's own dark color so they read as cut through to the
-   backdrop behind the card. */
 .punch-edge {
   position: relative;
   overflow: visible;
-}
-
-.punch-edge::before {
-  content: "";
-  position: absolute;
-  top: -1px;
-  left: 0;
-  right: 0;
-  height: 16px;
-  background-image: radial-gradient(circle 6px, var(--stage) 6px, transparent 6.5px);
-  background-size: 28px 16px;
-  background-position: 14px top;
-  background-repeat: repeat-x;
-  border-top-left-radius: inherit;
-  border-top-right-radius: inherit;
 }
 
 .end-eyebrow {
@@ -1069,8 +1018,8 @@ input[type="radio"] {
   letter-spacing: 0.01em;
   margin-bottom: var(--space-2);
   line-height: 0.95;
-  color: var(--ink);
-  text-shadow: 0 10px 30px rgba(255, 201, 74, 0.35);
+  color: var(--mario-red-dark);
+  text-shadow: 2px 2px 0 var(--coin);
 }
 
 .end-percentage {
