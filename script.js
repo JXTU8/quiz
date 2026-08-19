@@ -33,7 +33,6 @@ let timeLeft = 0;             // seconds left on the current question's timer
 let timerIntervalId = null;   // handle returned by setInterval, so we can clearInterval it
 let isSoundEnabled = true;    // global sound preference, controlled by the header toggle
 let activeMemeAudio = null;   // the currently playing feedback sound, if any
-let drumrollAudio = null;     // preloaded result reveal sound (fallback path)
 let audioFadeTimeoutId = null;
 let actx = null;
 let bgmTimer = null;
@@ -52,14 +51,6 @@ const bgmNotes = [
 ];
 
 let audioFadeIntervalId = null;
-let drumrollPrimeToken = 0;
-let revealAudioContext = null;
-let drumrollAudioBuffer = null;      // decoded PCM samples -- the real zero-latency path
-let drumrollBufferPromise = null;    // in-flight fetch+decode, so we never kick it off twice
-let drumrollBufferSourceNode = null; // the currently playing buffer source, if any
-let drumrollGainNode = null;         // its gain node, so fade-out/stop can reach it
-let computedRevealDelayMs = null;         // detected hit time -> drives the reveal; null until analyzed
-let drumrollPlaybackStartSeconds = null;  // detected lead-in trim; null until analyzed (see getDrumrollPlaybackStartSeconds)
 let feedbackTimeoutId = null; // handle for the delayed advance to the next question
 let questionTransitionTimeoutId = null;
 let endRevealTimeoutId = null;
@@ -74,14 +65,7 @@ const FEEDBACK_TIMING_MS = {
 };
 const AUDIO_FADE_MS = 450;
 const QUESTION_TRANSITION_MS = 420;
-const END_REVEAL_MS = 3700; // fallback reveal delay, used only if we can't analyze the buffer
-const DRUMROLL_SOUND_URL = "https://www.myinstants.com/media/sounds/bb-drum-roll.mp3";
-// Fallback-only lead-in trim for the <audio>-element path, which can't inspect
-// raw samples the way the AudioBuffer path below can. Left at 0 (no trim) on
-// purpose: we have no measured silence length for this specific file, and
-// guessing a number tuned for a different file risks clipping real content
-// instead of just leaving a little extra silence at the very start.
-const DRUMROLL_START_OFFSET_SECONDS = 0;
+const END_REVEAL_MS = 3700; // Delay for reveal
 const RING_RADIUS = 45;            // must match the SVG circle's r attribute
 const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 const SOUND_STORAGE_KEY = "quiz-builder-sound-enabled";
@@ -384,9 +368,6 @@ function handleStartQuiz() {
   isPlaying = true;
   saveState();
   setProgress(0);
-  preloadDrumrollAudio();
-  primeRevealAudio();
-  loadDrumrollAudioBuffer();
 
   showScreen("player");
   loadQuestion();
@@ -424,16 +405,6 @@ function loadQuestion() {
   // below), so it always reflects "questions completed," not "question
   // currently on screen."
 
-  if (currentQuestionIndex === quizQuestions.length - 1) {
-    // This question's ~15s timer is the last runway before the reveal.
-    // Re-attempt the buffer decode (in case it hasn't finished, or the
-    // first attempt failed) and re-run the muted <audio> prime -- on a
-    // longer quiz, the priming done once back at handleStartQuiz() can
-    // go cold by now, and this is the last chance to warm it up before
-    // it actually needs to be instant.
-    loadDrumrollAudioBuffer();
-    primeDrumrollAudio();
-  }
 
   startTimer();
 }
@@ -581,11 +552,7 @@ function handleAudioPlayFailure(audio) {
   if (activeMemeAudio !== audio) return;
   clearAudioFadeTimers();
   audio.pause();
-  if (audio === drumrollAudio) {
-    seekAudioToDrumrollStart(audio);
-  } else {
-    audio.currentTime = 0;
-  }
+  audio.currentTime = 0;
   activeMemeAudio = null;
 }
 
@@ -624,11 +591,7 @@ function fadeOutAndStopAudio(audio) {
       clearInterval(audioFadeIntervalId);
       audioFadeIntervalId = null;
       audio.pause();
-      if (audio === drumrollAudio) {
-        seekAudioToDrumrollStart(audio);
-      } else {
-        audio.currentTime = 0;
-      }
+      audio.currentTime = 0;
       if (activeMemeAudio === audio) activeMemeAudio = null;
     }
   }, stepMs);
@@ -636,14 +599,9 @@ function fadeOutAndStopAudio(audio) {
 
 function stopActiveMemeAudio() {
   clearAudioFadeTimers();
-  stopDrumrollBufferSource();
   if (!activeMemeAudio) return;
   activeMemeAudio.pause();
-  if (activeMemeAudio === drumrollAudio) {
-    seekAudioToDrumrollStart(activeMemeAudio);
-  } else {
-    activeMemeAudio.currentTime = 0;
-  }
+  activeMemeAudio.currentTime = 0;
   activeMemeAudio = null;
 }
 
@@ -730,8 +688,7 @@ function handleSoundToggleClick() {
     stopActiveMemeAudio();
     stopBgm();
   } else {
-    preloadDrumrollAudio();
-    primeRevealAudio();
+    ensureAudio();
     startBgm();
   }
   saveSoundPreference();
@@ -788,7 +745,7 @@ function showEndScreen() {
   clearState();
   const total = quizQuestions.length;
   const percentage = Math.round((score / total) * 100);
-  const revealDelayMs = getRevealDelayMs();
+  const revealDelayMs = END_REVEAL_MS;
 
   clearEndRevealTimers();
   showScreen("end");
@@ -872,289 +829,42 @@ function playRevealDrumroll() {
   stopActiveMemeAudio();
   if (!isSoundEnabled) return;
 
-  drumrollPrimeToken += 1;
+  ensureAudio();
 
-  // The decoded AudioBuffer is the actual fix for the startup gap: once
-  // decodeAudioData() has finished, every sample already sits in memory,
-  // so starting it is a synchronous, sample-accurate call with no network
-  // fetch and no seek to wait on. Seeking an <audio> element (the old
-  // path, kept below) can never fully close that gap, because seeking a
-  // compressed stream is itself an async decode operation -- it only
-  // looks synchronous. Only fall back to <audio> if the buffer never
-  // finished loading (slow network, or the host doesn't send CORS
-  // headers, so decodeAudioData() couldn't read the bytes).
-  if (drumrollAudioBuffer) {
-    playDrumrollFromBuffer(drumrollAudioBuffer);
-  } else {
-    playFallbackDrumrollAudio();
-  }
-}
+  const now = actx.currentTime;
+  const duration = END_REVEAL_MS / 1000;
 
-function getDrumrollAudio() {
-  if (!drumrollAudio) {
-    preloadDrumrollAudio();
-  }
-  return drumrollAudio;
-}
-
-function preloadDrumrollAudio() {
-  if (drumrollAudio) return;
-
-  drumrollAudio = new Audio(DRUMROLL_SOUND_URL);
-  drumrollAudio.preload = "auto";
-  drumrollAudio.load();
-  // Park it at the trimmed start point now, while nothing is waiting on
-  // it, instead of seeking right before play() at reveal time -- that's
-  // what was causing the audible gap before the drumroll sound started.
-  seekAudioToDrumrollStart(drumrollAudio);
-}
-
-/**
- * Fetches and decodes the drumroll mp3 into a raw AudioBuffer -- this is
- * what actually fixes the startup delay (see the comment in
- * playRevealDrumroll for why seeking an <audio> element can't). Kicked
- * off as early as possible (page load, and again at quiz start and at
- * the final question as safety-net retries) so decoding has the whole
- * session to finish long before it's ever needed. Safe to call more than
- * once: it no-ops once a buffer exists or a decode is already in flight.
- */
-function loadDrumrollAudioBuffer() {
-  if (drumrollAudioBuffer || drumrollBufferPromise) return drumrollBufferPromise;
-
-  const audioContext = getRevealAudioContext();
-  if (!audioContext) return null;
-
-  drumrollBufferPromise = fetch(DRUMROLL_SOUND_URL, { mode: "cors", credentials: "omit" })
-    .then((response) => {
-      if (!response.ok) throw new Error(`Drumroll fetch failed: ${response.status}`);
-      return response.arrayBuffer();
-    })
-    .then((arrayBuffer) => audioContext.decodeAudioData(arrayBuffer))
-    .then((decodedBuffer) => {
-      drumrollAudioBuffer = decodedBuffer;
-      analyzeDrumrollBuffer(decodedBuffer);
-      return decodedBuffer;
-    })
-    .catch((error) => {
-      // Cross-origin fetch/decode can fail for reasons outside our
-      // control -- no CORS headers from the host, a network hiccup, a
-      // format decodeAudioData() rejects. That's fine: playRevealDrumroll
-      // falls back to the pre-seeked <audio> element, it just won't have
-      // the zero-latency guarantee. Reset the promise so a later retry
-      // (e.g. at the final question) can try again instead of being
-      // stuck on this rejected one forever.
-      console.warn("Drumroll AudioBuffer unavailable, using <audio> fallback instead:", error);
-      drumrollBufferPromise = null;
-      return null;
-    });
-
-  return drumrollBufferPromise;
-}
-
-/**
- * This is the "listening" the code does instead of me: once decodeAudioData()
- * hands back raw PCM samples, scan them for (1) where real content starts
- * (skip any near-silent lead-in) and (2) the loudest sudden jump in volume --
- * the "hit"/crash/explosion at the end of a drumroll build-up. Whatever it
- * finds drives the actual reveal timing below instead of a fixed guess.
- */
-function analyzeDrumrollBuffer(buffer) {
-  try {
-    const startSeconds = findLeadingSilenceEndSeconds(buffer);
-    drumrollPlaybackStartSeconds = startSeconds;
-
-    const hitSeconds = findLoudestTransientSeconds(buffer);
-    if (hitSeconds !== null && hitSeconds > startSeconds) {
-      const delayFromPlaybackStartMs = (hitSeconds - startSeconds) * 1000;
-      // Clamp to a sane range regardless of what the analysis finds: too
-      // short and the score-roll has no time to feel like anything, too
-      // long and the reveal just feels stuck. 1.2s-6s covers any
-      // reasonable drumroll-into-hit clip.
-      computedRevealDelayMs = Math.min(6000, Math.max(1200, Math.round(delayFromPlaybackStartMs)));
-      console.info(`Drumroll analysis: playback starts at ${startSeconds.toFixed(2)}s, hit detected at ${hitSeconds.toFixed(2)}s -> reveal in ${computedRevealDelayMs}ms`);
-    } else {
-      console.warn("Drumroll analysis: no clear transient found, using the fixed fallback reveal timing instead.");
-    }
-  } catch (error) {
-    // Analysis is a bonus on top of a working drumroll, not a
-    // requirement -- if it throws for any reason, just keep the fixed
-    // fallback timing rather than breaking the reveal entirely.
-    console.warn("Drumroll analysis failed, using the fixed fallback reveal timing instead:", error);
-  }
-}
-
-/**
- * Finds when real audio content begins, in seconds, by scanning short
- * windows for the first one whose loudness clears a threshold relative to
- * the clip's own peak. Returns 0 if the buffer is silent throughout (i.e.
- * "nothing to trim") or too short to analyze meaningfully.
- */
-function findLeadingSilenceEndSeconds(buffer) {
+  // Create a rising noise sweep to act as a retro drumroll
+  const bufferSize = actx.sampleRate * duration;
+  const buffer = actx.createBuffer(1, bufferSize, actx.sampleRate);
   const data = buffer.getChannelData(0);
-  const sampleRate = buffer.sampleRate;
-  const windowSize = Math.max(1, Math.round(sampleRate * 0.01)); // 10ms windows
-  const windowCount = Math.floor(data.length / windowSize);
-  if (windowCount < 2) return 0;
-
-  let peak = 0;
-  for (let i = 0; i < data.length; i++) {
-    const abs = Math.abs(data[i]);
-    if (abs > peak) peak = abs;
-  }
-  if (peak < 0.001) return 0; // effectively silent clip -- nothing to skip past
-
-  // 2.5% of the clip's peak: low enough to catch a quiet buildup near its
-  // true onset (not just once it's already ramped partway to full volume),
-  // high enough to stay above genuine digital silence / encoder noise floor.
-  const threshold = peak * 0.025;
-  for (let w = 0; w < windowCount; w++) {
-    const start = w * windowSize;
-    let sumSquares = 0;
-    for (let i = start; i < start + windowSize; i++) sumSquares += data[i] * data[i];
-    if (Math.sqrt(sumSquares / windowSize) > threshold) {
-      return start / sampleRate;
-    }
-  }
-  return 0;
-}
-
-/**
- * Finds the "hit" -- validated against a real recording of this kind of
- * drum-roll-into-crash sound (see the analysis behind this change), not
- * just assumed. A plain rolling drum is fairly uniform in raw loudness
- * throughout, so comparing raw broadband loudness tends to just catch a
- * random peak inside the roll. What actually distinguishes a crash/hit is
- * a SUSTAINED shift toward high-frequency energy that holds, not a single
- * loud instant -- scored as an absolute increase (not a ratio, which is
- * misleadingly huge right where near-silence gives way to any audible
- * content at all, well before the real hit). A first-order difference
- * (data[i] - data[i-1]) is a cheap, synchronous high-frequency emphasis --
- * no OfflineAudioContext render needed -- that measured within 0ms of a
- * proper highpass filter on real test audio. Returns null if the buffer
- * is too short to compare a meaningful "before" and "after" span at all.
- */
-function findLoudestTransientSeconds(buffer) {
-  const data = buffer.getChannelData(0);
-  const sampleRate = buffer.sampleRate;
-  const windowSize = Math.max(1, Math.round(sampleRate * 0.02)); // 20ms windows
-  const windowCount = Math.floor(data.length / windowSize);
-  const spanWindows = Math.max(2, Math.round(0.15 / 0.02)); // ~150ms of context each side
-  if (windowCount < spanWindows * 2 + 1) return null;
-
-  const energies = new Array(windowCount);
-  for (let w = 0; w < windowCount; w++) {
-    const start = Math.max(1, w * windowSize);
-    const end = Math.min(data.length, start + windowSize);
-    let sumSquares = 0;
-    for (let i = start; i < end; i++) {
-      const diff = data[i] - data[i - 1]; // high-frequency emphasis
-      sumSquares += diff * diff;
-    }
-    energies[w] = Math.sqrt(sumSquares / windowSize);
+  for (let i = 0; i < bufferSize; i++) {
+    data[i] = Math.random() * 2 - 1;
   }
 
-  let bestWindow = -1;
-  let bestIncrease = 0; // require a genuine increase, not just whichever point decreased least
-  for (let w = spanWindows; w < windowCount - spanWindows; w++) {
-    let before = 0;
-    let after = 0;
-    for (let i = w - spanWindows; i < w; i++) before += energies[i];
-    for (let i = w; i < w + spanWindows; i++) after += energies[i];
-    before /= spanWindows;
-    after /= spanWindows;
-    // Absolute difference, not a ratio: a ratio is misleadingly huge right
-    // where near-total silence gives way to any audible content at all
-    // (dividing by a near-zero "before" value), even though that's much
-    // quieter in absolute terms than the real hit later on.
-    const increase = after - before;
-    if (increase > bestIncrease) {
-      bestIncrease = increase;
-      bestWindow = w;
-    }
-  }
-  return bestWindow < 0 ? null : (bestWindow * windowSize) / sampleRate;
+  const noiseSource = actx.createBufferSource();
+  noiseSource.buffer = buffer;
+
+  const filter = actx.createBiquadFilter();
+  filter.type = "lowpass";
+  // Filter opens up as the roll progresses
+  filter.frequency.setValueAtTime(400, now);
+  filter.frequency.exponentialRampToValueAtTime(3000, now + duration);
+
+  const gain = actx.createGain();
+  // Volume swells leading up to the final hit
+  gain.gain.setValueAtTime(0.01, now);
+  gain.gain.exponentialRampToValueAtTime(0.4, now + duration - 0.1);
+  gain.gain.linearRampToValueAtTime(0.001, now + duration);
+
+  noiseSource.connect(filter);
+  filter.connect(gain);
+  gain.connect(actx.destination);
+
+  noiseSource.start(now);
+  noiseSource.stop(now + duration);
 }
 
-/** The reveal delay to actually use: the detected hit timing if analysis
- * succeeded, otherwise the fixed default (also what plain <audio> fallback
- * playback uses, since it can't inspect samples to detect anything). */
-function getRevealDelayMs() {
-  return computedRevealDelayMs !== null ? computedRevealDelayMs : END_REVEAL_MS;
-}
-
-/** The offset (in seconds) into the buffer where playback should start --
- * detected lead-in trim if analysis has run, otherwise the fallback constant. */
-function getDrumrollPlaybackStartSeconds() {
-  return drumrollPlaybackStartSeconds !== null ? drumrollPlaybackStartSeconds : DRUMROLL_START_OFFSET_SECONDS;
-}
-
-function primeRevealAudio() {
-  if (!isSoundEnabled) return;
-
-  const audioContext = getRevealAudioContext();
-  if (audioContext && audioContext.state === "suspended") {
-    audioContext.resume().catch(() => {});
-  }
-
-  primeDrumrollAudio();
-}
-
-function primeDrumrollAudio() {
-  if (!isSoundEnabled || !drumrollAudio) return;
-
-  const audio = getDrumrollAudio();
-  const primeToken = drumrollPrimeToken + 1;
-  drumrollPrimeToken = primeToken;
-  audio.muted = true;
-  seekAudioToDrumrollStart(audio);
-
-  audio.play()
-    .then(() => {
-      if (primeToken !== drumrollPrimeToken) return;
-      audio.pause();
-      // Leave it parked at the trimmed start, not rewound to 0 -- rewinding
-      // here would silently reintroduce the seek delay this whole change
-      // is meant to avoid, right before the moment it needs to be instant.
-      seekAudioToDrumrollStart(audio);
-      audio.muted = false;
-    })
-    .catch(() => {
-      if (primeToken === drumrollPrimeToken) {
-        audio.muted = false;
-      }
-    });
-}
-
-function getRevealAudioContext() {
-  const AudioContextConstructor = window.AudioContext || window.webkitAudioContext;
-  if (!AudioContextConstructor) return null;
-
-  if (!revealAudioContext) {
-    revealAudioContext = new AudioContextConstructor();
-  }
-  return revealAudioContext;
-}
-
-function playRevealImpactSound() {
-  if (!isSoundEnabled) return;
-
-  const audioContext = getRevealAudioContext();
-  if (!audioContext || audioContext.state === "suspended") return;
-
-  const now = audioContext.currentTime;
-  const oscillator = audioContext.createOscillator();
-  const gain = audioContext.createGain();
-  oscillator.type = "sine";
-  oscillator.frequency.setValueAtTime(150, now);
-  oscillator.frequency.exponentialRampToValueAtTime(44, now + 0.38);
-  gain.gain.setValueAtTime(0.0001, now);
-  gain.gain.exponentialRampToValueAtTime(0.42, now + 0.018);
-  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.55);
-  oscillator.connect(gain);
-  gain.connect(audioContext.destination);
-  oscillator.start(now);
-  oscillator.stop(now + 0.58);
-}
 
 /**
  * A synthesized explosion for the confetti burst -- no mp3 to fetch, so
@@ -1166,149 +876,21 @@ function playRevealImpactSound() {
 function playConfettiExplosionSound() {
   if (!isSoundEnabled) return;
 
-  const audioContext = getRevealAudioContext();
-  if (!audioContext || audioContext.state === "suspended") return;
+  // A triumphant, retro "Stage Clear" arpeggio instead of an explosion
+  const notes = [
+    523.25, // C5
+    659.25, // E5
+    783.99, // G5
+    1046.50 // C6
+  ];
 
-  const now = audioContext.currentTime;
+  notes.forEach((f, i) => {
+    tone(f, 0.15, 'square', 0.2, i * 0.12);
+  });
 
-  const boom = audioContext.createOscillator();
-  const boomGain = audioContext.createGain();
-  boom.type = "sine";
-  boom.frequency.setValueAtTime(140, now);
-  boom.frequency.exponentialRampToValueAtTime(28, now + 0.55);
-  boomGain.gain.setValueAtTime(0.0001, now);
-  boomGain.gain.exponentialRampToValueAtTime(0.55, now + 0.02);
-  boomGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.9);
-  boom.connect(boomGain);
-  boomGain.connect(audioContext.destination);
-  boom.start(now);
-  boom.stop(now + 0.95);
-
-  const noiseSource = audioContext.createBufferSource();
-  noiseSource.buffer = createNoiseBuffer(audioContext, 0.7);
-
-  const noiseFilter = audioContext.createBiquadFilter();
-  noiseFilter.type = "lowpass";
-  noiseFilter.frequency.setValueAtTime(7000, now);
-  noiseFilter.frequency.exponentialRampToValueAtTime(180, now + 0.65);
-
-  const noiseGain = audioContext.createGain();
-  noiseGain.gain.setValueAtTime(0.0001, now);
-  noiseGain.gain.exponentialRampToValueAtTime(0.3, now + 0.01);
-  noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.7);
-
-  noiseSource.connect(noiseFilter);
-  noiseFilter.connect(noiseGain);
-  noiseGain.connect(audioContext.destination);
-  noiseSource.start(now);
-  noiseSource.stop(now + 0.7);
-}
-
-/** Builds a short buffer of white noise for the explosion's crackle layer. */
-function createNoiseBuffer(audioContext, durationSeconds) {
-  const sampleRate = audioContext.sampleRate;
-  const length = Math.max(1, Math.floor(sampleRate * durationSeconds));
-  const buffer = audioContext.createBuffer(1, length, sampleRate);
-  const data = buffer.getChannelData(0);
-  for (let i = 0; i < length; i++) {
-    data[i] = Math.random() * 2 - 1;
-  }
-  return buffer;
-}
-
-/**
- * Plays the decoded drumroll buffer via the Web Audio API. Starting a
- * BufferSourceNode is just scheduling -- no network, no decode-on-demand
- * -- and "offset" skips the silent lead-in the same way
- * DRUMROLL_START_OFFSET_SECONDS did for the <audio> element, but as a
- * plain array index instead of a seek that has to resolve first.
- */
-function playDrumrollFromBuffer(buffer) {
-  const audioContext = getRevealAudioContext();
-  if (!audioContext) {
-    playFallbackDrumrollAudio();
-    return;
-  }
-  if (audioContext.state === "suspended") {
-    audioContext.resume().catch(() => {});
-  }
-
-  stopDrumrollBufferSource();
-
-  const source = audioContext.createBufferSource();
-  const gainNode = audioContext.createGain();
-  source.buffer = buffer;
-  source.connect(gainNode);
-  gainNode.connect(audioContext.destination);
-
-  const startVolume = 0.75;
-  const now = audioContext.currentTime;
-  // Let the detected hit ring for a beat before fading, instead of fading
-  // out beforehand -- the reveal is timed to land ON the hit, so cutting
-  // the volume before that point would silence the exact moment this is
-  // built around.
-  const fadeStartSeconds = Math.max(0.05, getRevealDelayMs() / 1000 + 0.15);
-  const fadeDurationSeconds = AUDIO_FADE_MS / 1000;
-
-  gainNode.gain.setValueAtTime(startVolume, now);
-  gainNode.gain.setValueAtTime(startVolume, now + fadeStartSeconds);
-  gainNode.gain.linearRampToValueAtTime(0.0001, now + fadeStartSeconds + fadeDurationSeconds);
-
-  const offset = Math.min(getDrumrollPlaybackStartSeconds(), Math.max(0, buffer.duration - 0.05));
-  source.start(now, offset);
-  source.stop(now + fadeStartSeconds + fadeDurationSeconds + 0.05);
-
-  drumrollBufferSourceNode = source;
-  drumrollGainNode = gainNode;
-}
-
-/** Stops and releases the currently-playing buffer source node, if any. */
-function stopDrumrollBufferSource() {
-  if (drumrollBufferSourceNode) {
-    try {
-      drumrollBufferSourceNode.stop();
-    } catch (error) {
-      // Already stopped, or reached the end of the buffer naturally --
-      // nothing left to do.
-    }
-    drumrollBufferSourceNode.disconnect();
-    drumrollBufferSourceNode = null;
-  }
-  if (drumrollGainNode) {
-    drumrollGainNode.disconnect();
-    drumrollGainNode = null;
-  }
-}
-
-function playFallbackDrumrollAudio() {
-  const audio = getDrumrollAudio();
-  activeMemeAudio = audio;
-  audio.muted = false;
-  audio.pause();
-  seekAudioToDrumrollStart(audio);
-  audio.volume = 0.75;
-  scheduleAudioFadeOut(audio, Math.max(0, getRevealDelayMs() - AUDIO_FADE_MS));
-  audio.play().catch(() => handleAudioPlayFailure(audio));
-}
-
-function seekAudioToDrumrollStart(audio) {
-  // Setting currentTime looks synchronous but isn't: the browser has to
-  // seek/decode to the new position before play() actually produces sound.
-  // Calling this well ahead of the reveal (preload, priming, any reset)
-  // means that work happens while nobody's listening. The threshold check
-  // makes a repeat call at reveal time a no-op instead of a fresh seek.
-  const applyOffset = () => {
-    const targetOffset = getDrumrollPlaybackStartSeconds();
-    if (Math.abs(audio.currentTime - targetOffset) > 0.05) {
-      audio.currentTime = targetOffset;
-    }
-  };
-
-  if (audio.readyState >= 1) { // HAVE_METADATA -- currentTime is safe to read/set
-    applyOffset();
-  } else {
-    audio.addEventListener("loadedmetadata", applyOffset, { once: true });
-  }
+  // A final, sustained high chord piece
+  tone(1046.50, 0.6, 'square', 0.2, notes.length * 0.12);
+  tone(1318.51, 0.6, 'square', 0.2, notes.length * 0.12);
 }
 
 function clearEndRevealTimers() {
@@ -1492,10 +1074,6 @@ function playClick() {
   tone(440,0.06,'square',0.12,0);
 }
 
-function playWin() {
-  if (!isSoundEnabled) return;
-  [523.25,523.25,523.25,659.25,783.99,1046.50].forEach((f,i)=>tone(f,0.14,'square',0.18,i*0.1));
-}
 
 function startBgm(){
   if(bgmTimer) return;
@@ -1524,8 +1102,6 @@ function stopBgm(){
 function init() {
   loadSoundPreference();
   updateSoundToggleVisual();
-  preloadDrumrollAudio();
-  loadDrumrollAudioBuffer();
 
   const hasState = loadState();
 
